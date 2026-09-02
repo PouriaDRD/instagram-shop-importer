@@ -12,25 +12,54 @@ PERSIAN_DIGITS = str.maketrans(
     "۰۱۲۳۴۵۶۷۸۹",
 )
 
+PERSIAN_MONTHS: tuple[str, ...] = (
+    "",
+    "فروردین",
+    "اردیبهشت",
+    "خرداد",
+    "تیر",
+    "مرداد",
+    "شهریور",
+    "مهر",
+    "آبان",
+    "آذر",
+    "دی",
+    "بهمن",
+    "اسفند",
+)
+
+
+def to_persian_digits(
+    value: str,
+) -> str:
+    return value.translate(
+        PERSIAN_DIGITS,
+    )
+
 
 def to_iran_datetime(
-    value: datetime | None,
+    value: object,
 ) -> datetime | None:
-    if value is None:
+    if not isinstance(
+        value,
+        datetime,
+    ):
         return None
 
-    if value.tzinfo is None:
-        value = value.replace(
+    normalized = value
+
+    if normalized.tzinfo is None:
+        normalized = normalized.replace(
             tzinfo=timezone.utc,
         )
 
-    return value.astimezone(
+    return normalized.astimezone(
         IRAN_TIMEZONE,
     )
 
 
 def to_jalali_datetime(
-    value: datetime | None,
+    value: object,
 ) -> jdatetime.datetime | None:
     iran_datetime = to_iran_datetime(
         value,
@@ -44,26 +73,54 @@ def to_jalali_datetime(
     )
 
 
-def format_iran_datetime(
-    value: datetime | None,
+def format_iran_date(
+    value: object,
 ) -> str:
-    jalali_datetime = to_jalali_datetime(
+    jalali = to_jalali_datetime(
         value,
     )
 
-    if jalali_datetime is None:
+    if jalali is None:
         return "-"
 
-    formatted = (
-        f"{jalali_datetime.year:04d}/"
-        f"{jalali_datetime.month:02d}/"
-        f"{jalali_datetime.day:02d}"
-        " - "
-        f"{jalali_datetime.hour:02d}:"
-        f"{jalali_datetime.minute:02d}:"
-        f"{jalali_datetime.second:02d}"
+    month_name = PERSIAN_MONTHS[jalali.month]
+
+    result = f"{jalali.day} " f"{month_name} " f"{jalali.year}"
+
+    return to_persian_digits(
+        result,
     )
 
-    return formatted.translate(
-        PERSIAN_DIGITS,
+
+def format_iran_time(
+    value: object,
+) -> str:
+    iran_datetime = to_iran_datetime(
+        value,
     )
+
+    if iran_datetime is None:
+        return "-"
+
+    result = f"{iran_datetime.hour:02d}:" f"{iran_datetime.minute:02d}"
+
+    return to_persian_digits(
+        result,
+    )
+
+
+def format_iran_datetime(
+    value: object,
+) -> str:
+    date_text = format_iran_date(
+        value,
+    )
+
+    time_text = format_iran_time(
+        value,
+    )
+
+    if date_text == "-" or time_text == "-":
+        return "-"
+
+    return f"{date_text}، " f"ساعت {time_text}"

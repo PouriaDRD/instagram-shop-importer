@@ -1,7 +1,7 @@
 ﻿{% extends 'base.html' %}
 
 {% block title %}
-  @{{ session.username }} | Selora Importer
+  @{{ crawl_session.username }} | Selora Importer
 {% endblock %}
 
 {% block breadcrumb %}
@@ -14,52 +14,48 @@
 
     <span class="page-breadcrumb__separator">/</span>
 
-    <span class="page-breadcrumb__current" dir="ltr">@{{ session.username }}</span>
+    <span class="page-breadcrumb__current" dir="ltr">@{{ crawl_session.username }}</span>
   </nav>
 {% endblock %}
 
 {% block content %}
   <section class="crawl-detail-header">
     <div class="crawl-profile">
-      {% if session.profile_picture_url %}
-        <img src="{{ session.profile_picture_url }}" alt="@{{ session.username }}" class="crawl-profile__avatar" />
+      {% if crawl_session.profile_picture_url %}
+        <img src="{{ crawl_session.profile_picture_url }}" alt="@{{ crawl_session.username }}" class="crawl-profile__avatar" />
       {% else %}
-        <div class="crawl-profile__avatar-placeholder" aria-hidden="true">{{ session.username[:1]|upper }}</div>
+        <div class="crawl-profile__avatar-placeholder" aria-hidden="true">{{ crawl_session.username[:1]|upper }}</div>
       {% endif %}
 
       <div class="crawl-profile__content">
-        <h1 class="crawl-profile__name">{{ session.full_name or session.username }}</h1>
+        <h1 class="crawl-profile__name">{{ crawl_session.full_name or crawl_session.username }}</h1>
 
-        <div class="crawl-profile__username" dir="ltr">@{{ session.username }}</div>
+        <div class="crawl-profile__username" dir="ltr">@{{ crawl_session.username }}</div>
 
-        {% if session.biography %}
-          <p class="crawl-profile__bio">{{ session.biography }}</p>
+        {% if crawl_session.biography %}
+          <p class="crawl-profile__bio">{{ crawl_session.biography }}</p>
         {% endif %}
 
         <div class="crawl-profile__stats">
           <span class="crawl-profile__stat">
-            <strong>{{ session.followers_count or 0 }}</strong>
-
+            <strong>{{ crawl_session.followers_count or 0 }}</strong>
             دنبال‌کننده
           </span>
 
           <span class="crawl-profile__stat">
-            <strong>{{ session.following_count or 0 }}</strong>
-
+            <strong>{{ crawl_session.following_count or 0 }}</strong>
             دنبال‌شونده
           </span>
 
-          {% if session.instagram_media_count is not none %}
+          {% if crawl_session.instagram_media_count is not none %}
             <span class="crawl-profile__stat">
-              <strong>{{ session.instagram_media_count }}</strong>
-
+              <strong>{{ crawl_session.instagram_media_count }}</strong>
               محتوای اینستاگرام
             </span>
           {% endif %}
 
           <span class="crawl-profile__stat">
-            <strong>{{ session.crawled_media_count }}</strong>
-
+            <strong>{{ crawl_session.crawled_media_count }}</strong>
             دریافت‌شده
           </span>
         </div>
@@ -67,11 +63,11 @@
     </div>
 
     <div>
-      {% if session.status == 'completed' %}
+      {% if crawl_session.status == 'completed' %}
         <span class="session-status session-status--completed">تکمیل‌شده</span>
-      {% elif session.status == 'running' %}
+      {% elif crawl_session.status == 'running' %}
         <span class="session-status session-status--running">در حال اجرا</span>
-      {% elif session.status == 'failed' %}
+      {% elif crawl_session.status == 'failed' %}
         <span class="session-status session-status--failed">ناموفق</span>
       {% else %}
         <span class="session-status session-status--pending">در انتظار</span>
@@ -79,46 +75,100 @@
     </div>
   </section>
 
-  <section class="card session-timing-card">
-    <div class="session-timing">
-      <div class="session-timing__item">
-        <span class="session-timing__label">ایجاد نشست</span>
+  <section class="detail-time-section">
+    <div class="detail-time-section__header">
+      <div>
+        <h2 class="detail-time-section__title">زمان‌بندی نشست</h2>
 
-        <strong class="session-timing__value">{{ session.created_at|iran_datetime }}</strong>
+        <p class="detail-time-section__description">تمام تاریخ‌ها بر اساس تقویم شمسی و ساعت ایران نمایش داده می‌شوند.</p>
       </div>
+    </div>
 
-      {% if session.started_at %}
-        <div class="session-timing__item">
-          <span class="session-timing__label">شروع کراول</span>
+    <div class="detail-time-grid">
+      <article class="detail-time-card">
+        <div class="detail-time-card__icon">۱</div>
 
-          <strong class="session-timing__value">{{ session.started_at|iran_datetime }}</strong>
+        <div class="detail-time-card__content">
+          <span class="detail-time-card__label">ایجاد نشست</span>
+
+          <strong class="detail-time-card__date">{{ crawl_session.created_at|iran_date }}</strong>
+
+          <span class="detail-time-card__time">
+            ساعت
+            {{ crawl_session.created_at|iran_time }}
+          </span>
+
+          <p class="detail-time-card__help">زمانی که این نشست در Importer ساخته شده است.</p>
         </div>
-      {% endif %}
+      </article>
 
-      {% if session.completed_at %}
-        <div class="session-timing__item">
-          <span class="session-timing__label">پایان کراول</span>
+      <article class="detail-time-card">
+        <div class="detail-time-card__icon">۲</div>
 
-          <strong class="session-timing__value">{{ session.completed_at|iran_datetime }}</strong>
+        <div class="detail-time-card__content">
+          <span class="detail-time-card__label">شروع کراول</span>
+
+          {% if crawl_session.started_at %}
+            <strong class="detail-time-card__date">{{ crawl_session.started_at|iran_date }}</strong>
+
+            <span class="detail-time-card__time">
+              ساعت
+              {{ crawl_session.started_at|iran_time }}
+            </span>
+          {% else %}
+            <strong class="detail-time-card__date detail-time-card__date--empty">هنوز شروع نشده</strong>
+          {% endif %}
+
+          <p class="detail-time-card__help">زمانی که دریافت اطلاعات پیج از اینستاگرام واقعاً آغاز شده است.</p>
         </div>
-      {% endif %}
+      </article>
+
+      <article class="detail-time-card">
+        <div class="detail-time-card__icon">۳</div>
+
+        <div class="detail-time-card__content">
+          <span class="detail-time-card__label">پایان کراول</span>
+
+          {% if crawl_session.completed_at %}
+            <strong class="detail-time-card__date">{{ crawl_session.completed_at|iran_date }}</strong>
+
+            <span class="detail-time-card__time">
+              ساعت
+              {{ crawl_session.completed_at|iran_time }}
+            </span>
+          {% elif crawl_session.status == 'running' %}
+            <strong class="detail-time-card__date detail-time-card__date--running">در حال اجرا</strong>
+          {% else %}
+            <strong class="detail-time-card__date detail-time-card__date--empty">ثبت نشده</strong>
+          {% endif %}
+
+          <p class="detail-time-card__help">زمانی که دریافت و ذخیره محتوای این نشست به پایان رسیده است.</p>
+        </div>
+      </article>
     </div>
   </section>
 
-  {% if session.status == 'failed' and session.error_message %}
-    <div class="crawl-error">{{ session.error_message }}</div>
+  {% if crawl_session.status == 'failed' and crawl_session.error_message %}
+    <div class="crawl-error">{{ crawl_session.error_message }}</div>
   {% endif %}
 
   <section class="crawl-media-section">
     <div class="crawl-section-header">
-      <h2 class="crawl-section-title">محتوای استخراج‌شده</h2>
+      <div>
+        <h2 class="crawl-section-title">محتوای استخراج‌شده</h2>
 
-      <span class="crawl-section-count">{{ session.media|length }} مورد</span>
+        <p class="crawl-section-description">پست‌ها و ریلزهای دریافت‌شده در این نشست</p>
+      </div>
+
+      <span class="crawl-section-count">
+        {{ crawl_session.media|length }}
+        مورد
+      </span>
     </div>
 
-    {% if session.media %}
+    {% if crawl_session.media %}
       <div class="crawl-media-grid">
-        {% for media in session.media %}
+        {% for media in crawl_session.media %}
           <article class="crawl-media-card">
             <div class="crawl-media-card__media">
               {% if media.thumbnail_url %}
@@ -180,7 +230,16 @@
               </div>
 
               {% if media.published_at %}
-                <div class="crawl-media-card__date">{{ media.published_at|iran_datetime }}</div>
+                <div class="media-published-date">
+                  <span class="media-published-date__label">تاریخ انتشار در اینستاگرام</span>
+
+                  <strong class="media-published-date__value">{{ media.published_at|iran_date }}</strong>
+
+                  <span class="media-published-date__time">
+                    ساعت
+                    {{ media.published_at|iran_time }}
+                  </span>
+                </div>
               {% endif %}
 
               <a href="{{ media.permalink }}" target="_blank" rel="noopener noreferrer" class="crawl-media-card__link">مشاهده در اینستاگرام</a>

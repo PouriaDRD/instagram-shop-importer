@@ -9,6 +9,7 @@ from flask import (
     abort,
     current_app,
     jsonify,
+    redirect,
     render_template,
     request,
     url_for,
@@ -40,6 +41,11 @@ def index() -> str:
     return render_template("index.html")
 
 
+@web_bp.get("/favicon.ico")
+def favicon() -> ResponseReturnValue:
+    return current_app.send_static_file("images/favicon.ico")
+
+
 @web_bp.get("/crawls")
 def crawl_list() -> str:
     repository = CrawlSessionRepository()
@@ -50,6 +56,12 @@ def crawl_list() -> str:
         "crawl_list.html",
         sessions=sessions,
     )
+
+
+@web_bp.get("/crawl")
+@web_bp.get("/crawl/")
+def crawl_get_redirect() -> ResponseReturnValue:
+    return redirect(url_for("web.index"))
 
 
 @web_bp.post("/crawl")
@@ -68,7 +80,7 @@ def start_crawl() -> ResponseReturnValue:
             jsonify(
                 {
                     "error": "invalid_username",
-                    "message": "نام کاربری اینستاگرام الزامی است.",
+                    "message": ("نام کاربری اینستاگرام " "الزامی است."),
                 }
             ),
             400,
@@ -90,7 +102,7 @@ def start_crawl() -> ResponseReturnValue:
                 jsonify(
                     {
                         "error": "invalid_max_items",
-                        "message": "تعداد محتوا باید یک عدد معتبر باشد.",
+                        "message": ("تعداد محتوا باید " "یک عدد معتبر باشد."),
                     }
                 ),
                 400,
@@ -101,7 +113,7 @@ def start_crawl() -> ResponseReturnValue:
                 jsonify(
                     {
                         "error": "invalid_max_items",
-                        "message": "تعداد محتوا باید بیشتر از صفر باشد.",
+                        "message": ("تعداد محتوا باید " "بیشتر از صفر باشد."),
                     }
                 ),
                 400,
@@ -112,62 +124,64 @@ def start_crawl() -> ResponseReturnValue:
                 jsonify(
                     {
                         "error": "invalid_max_items",
-                        "message": "در حال حاضر حداکثر ۱۰۰ محتوا قابل دریافت است.",
+                        "message": ("در حال حاضر حداکثر " "۱۰۰ محتوا قابل دریافت است."),
                     }
                 ),
                 400,
             )
 
     service = CrawlService(
-        provider=PlaywrightInstagramProvider(),
-        repository=CrawlSessionRepository(),
+        provider=(PlaywrightInstagramProvider()),
+        repository=(CrawlSessionRepository()),
     )
 
     try:
-        session = service.create_session(
+        crawl_session = service.create_session(
             username=username,
         )
 
     except Exception:
         logger.exception(
-            "Failed to create crawl session for @%s",
+            ("Failed to create crawl " "session for @%s"),
             username,
         )
 
         return (
             jsonify(
                 {
-                    "error": "session_creation_failed",
-                    "message": "ساخت نشست کراول با خطا مواجه شد.",
+                    "error": ("session_creation_failed"),
+                    "message": ("ساخت نشست کراول " "با خطا مواجه شد."),
                 }
             ),
             500,
         )
 
-    # Safely cast current_app to explicit Flask instance for type checkers
-    app = cast(Flask, current_app._get_current_object())  # type: ignore[attr-defined]
+    flask_app = cast(
+        Flask,
+        current_app._get_current_object(), # type: ignore
+    )
 
     runner = BackgroundCrawlRunner()
 
     runner.start(
-        app=app,
-        session_id=session.id,
+        app=flask_app,
+        session_id=crawl_session.id,
         max_items=max_items,
     )
 
     return (
         jsonify(
             {
-                "id": session.id,
-                "username": session.username,
-                "status": session.status,
+                "id": crawl_session.id,
+                "username": (crawl_session.username),
+                "status": (crawl_session.status),
                 "status_url": url_for(
                     "web.crawl_status",
-                    session_id=session.id,
+                    session_id=(crawl_session.id),
                 ),
                 "detail_url": url_for(
                     "web.crawl_detail",
-                    session_id=session.id,
+                    session_id=(crawl_session.id),
                 ),
             }
         ),
@@ -181,14 +195,14 @@ def crawl_status(
 ) -> ResponseReturnValue:
     repository = CrawlSessionRepository()
 
-    session = repository.get(session_id=session_id)
+    crawl_session = repository.get(session_id=session_id)
 
-    if session is None:
+    if crawl_session is None:
         return (
             jsonify(
                 {
                     "error": "not_found",
-                    "message": "نشست کراول پیدا نشد.",
+                    "message": ("نشست کراول پیدا نشد."),
                 }
             ),
             404,
@@ -196,15 +210,15 @@ def crawl_status(
 
     return jsonify(
         {
-            "id": session.id,
-            "username": session.username,
-            "status": session.status,
-            "full_name": session.full_name,
-            "crawled_media_count": session.crawled_media_count,
-            "error_message": session.error_message,
+            "id": crawl_session.id,
+            "username": (crawl_session.username),
+            "status": crawl_session.status,
+            "full_name": (crawl_session.full_name),
+            "crawled_media_count": (crawl_session.crawled_media_count),
+            "error_message": (crawl_session.error_message),
             "detail_url": url_for(
                 "web.crawl_detail",
-                session_id=session.id,
+                session_id=crawl_session.id,
             ),
         }
     )
@@ -216,12 +230,12 @@ def crawl_detail(
 ) -> ResponseReturnValue:
     repository = CrawlSessionRepository()
 
-    session = repository.get(session_id=session_id)
+    crawl_session = repository.get(session_id=session_id)
 
-    if session is None:
+    if crawl_session is None:
         abort(404)
 
     return render_template(
         "crawl_detail.html",
-        session=session,
+        crawl_session=crawl_session,
     )

@@ -8,13 +8,16 @@ from flask import (
     Flask,
     Response,
     g,
+    render_template,
     request,
 )
 from flask.typing import ResponseReturnValue
 from werkzeug.exceptions import HTTPException
 
 from app.common.datetime import (
+    format_iran_date,
     format_iran_datetime,
+    format_iran_time,
 )
 from app.common.logging import (
     configure_logging,
@@ -45,7 +48,7 @@ def create_app() -> Flask:
 
     db.init_app(app)
 
-    register_template_filters(app)
+    register_template_helpers(app)
 
     register_routes(app)
 
@@ -61,10 +64,25 @@ def create_app() -> Flask:
     return app
 
 
-def register_template_filters(
+def register_template_helpers(
     app: Flask,
 ) -> None:
     app.jinja_env.filters["iran_datetime"] = format_iran_datetime
+
+    app.jinja_env.filters["iran_date"] = format_iran_date
+
+    app.jinja_env.filters["iran_time"] = format_iran_time
+
+    # Defensive compatibility.
+    # Standard Jinja uses `none`, but this prevents
+    # accidental `is null` / `is not null` from crashing.
+    app.jinja_env.tests["null"] = is_null
+
+
+def is_null(
+    value: object,
+) -> bool:
+    return value is None
 
 
 def register_routes(
@@ -114,6 +132,36 @@ def register_http_logging(
 def register_error_handlers(
     app: Flask,
 ) -> None:
+    @app.errorhandler(404)
+    def handle_not_found(
+        error: Exception,
+    ) -> ResponseReturnValue:
+        return (
+            render_template(
+                "error.html",
+                status_code=404,
+                title="صفحه پیدا نشد",
+                message=(
+                    "صفحه‌ای که دنبال آن هستید " "وجود ندارد یا آدرس آن اشتباه است."
+                ),
+            ),
+            404,
+        )
+
+    @app.errorhandler(405)
+    def handle_method_not_allowed(
+        error: Exception,
+    ) -> ResponseReturnValue:
+        return (
+            render_template(
+                "error.html",
+                status_code=405,
+                title="درخواست نامعتبر",
+                message=("این صفحه با این روش " "قابل دسترسی نیست."),
+            ),
+            405,
+        )
+
     @app.errorhandler(Exception)
     def handle_unexpected_error(
         error: Exception,
@@ -127,10 +175,15 @@ def register_error_handlers(
         logger.exception("Unhandled application error")
 
         return (
-            {
-                "error": "internal_server_error",
-                "message": ("Unexpected application error."),
-            },
+            render_template(
+                "error.html",
+                status_code=500,
+                title="خطای داخلی برنامه",
+                message=(
+                    "در پردازش این صفحه مشکلی رخ داد. "
+                    "جزئیات فنی در لاگ برنامه ثبت شده است."
+                ),
+            ),
             500,
         )
 

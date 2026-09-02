@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  {{ title }} | Selora Importer
+{% endblock %}
+
+{% block breadcrumb %}
+  <nav class="page-breadcrumb" aria-label="مسیر صفحه">
+    <a href="{{ url_for('web.index') }}">شروع کراول</a>
+
+    <span class="page-breadcrumb__separator">/</span>
+
+    <span class="page-breadcrumb__current">خطا</span>
+  </nav>
+{% endblock %}
+
+{% block content %}
+  <section class="error-page">
+    <div class="error-page__code">{{ status_code }}</div>
+
+    <h1 class="error-page__title">{{ title }}</h1>
+
+    <p class="error-page__description">{{ message }}</p>
+
+    <div class="error-page__actions">
+      <a href="{{ url_for('web.index') }}" class="button button--primary">شروع کراول</a>
+
+      <a href="{{ url_for('web.crawl_list') }}" class="button button--secondary">مشاهده نشست‌ها</a>
+    </div>
+  </section>
+{% endblock %}

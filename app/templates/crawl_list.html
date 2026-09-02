@@ -39,9 +39,9 @@
 
               <th>محتوا</th>
 
-              <th>زمان ایجاد</th>
+              <th>ایجاد نشست</th>
 
-              <th>زمان پایان</th>
+              <th>پایان کراول</th>
 
               <th class="sessions-table__actions-heading">عملیات</th>
             </tr>
@@ -87,11 +87,31 @@
                 </td>
 
                 <td>
-                  <span class="session-date">{{ crawl_session.created_at|iran_datetime }}</span>
+                  <div class="table-date">
+                    <strong class="table-date__date">{{ crawl_session.created_at|iran_date }}</strong>
+
+                    <span class="table-date__time">
+                      ساعت
+                      {{ crawl_session.created_at|iran_time }}
+                    </span>
+                  </div>
                 </td>
 
                 <td>
-                  <span class="session-date">{{ crawl_session.completed_at|iran_datetime }}</span>
+                  {% if crawl_session.completed_at %}
+                    <div class="table-date">
+                      <strong class="table-date__date">{{ crawl_session.completed_at|iran_date }}</strong>
+
+                      <span class="table-date__time">
+                        ساعت
+                        {{ crawl_session.completed_at|iran_time }}
+                      </span>
+                    </div>
+                  {% elif crawl_session.status == 'running' %}
+                    <span class="table-date-state table-date-state--running">در حال اجرا</span>
+                  {% else %}
+                    <span class="table-date-state">ثبت نشده</span>
+                  {% endif %}
                 </td>
 
                 <td>
