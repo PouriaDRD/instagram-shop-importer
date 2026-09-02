@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="fa" dir="rtl">
   <head>
     <meta charset="utf-8" />
@@ -8,26 +7,16 @@
 
     <meta name="theme-color" content="#4f46e5" />
 
-    <meta name="color-scheme" content="light" />
-
     <title>
       {% block title %}
         Selora Importer
       {% endblock %}
     </title>
 
-    <!--     
-        Prevent the browser from automatically requesting
-        /favicon.ico until we add the real Selora favicon.
-         -->
-    <link rel="icon" href="data:," />
+    <!-- Favicon -->
+    <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon" />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-
+    <!-- Main stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}" />
 
     {% block head %}
@@ -39,7 +28,7 @@
     <div class="app-shell">
       <header class="app-header">
         <div class="app-header__inner">
-          <a href="{{ url_for('web.index') }}" class="brand">
+          <a href="{{ url_for('web.index') }}" class="brand" aria-label="Selora Importer">
             <span class="brand__mark">S</span>
 
             <span class="brand__content">

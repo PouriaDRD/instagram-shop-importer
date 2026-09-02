@@ -4,7 +4,12 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+)
 
 
 class InstagramMediaType(StrEnum):
@@ -21,6 +26,37 @@ class InstagramAssetType(StrEnum):
     THUMBNAIL = "thumbnail"
 
 
+def _validate_http_url(
+    value: str | None,
+) -> str | None:
+    """
+    Validate that a URL is HTTP or HTTPS.
+
+    The DTO intentionally exposes URLs as plain strings rather than
+    Pydantic HttpUrl objects. This keeps the domain/provider boundary
+    simple and fully compatible with static type checkers such as
+    Pylance and mypy.
+    """
+
+    if value is None:
+        return None
+
+    normalized = value.strip()
+
+    if not normalized:
+        return None
+
+    if not normalized.startswith(
+        (
+            "http://",
+            "https://",
+        )
+    ):
+        raise ValueError("URL must start with http:// or https://")
+
+    return normalized
+
+
 class InstagramProfileDTO(BaseModel):
     model_config = ConfigDict(
         frozen=True,
@@ -35,7 +71,7 @@ class InstagramProfileDTO(BaseModel):
     full_name: str = ""
     biography: str = ""
 
-    profile_picture_url: HttpUrl | None = None
+    profile_picture_url: str | None = None
 
     followers_count: int | None = Field(
         default=None,
@@ -58,6 +94,16 @@ class InstagramProfileDTO(BaseModel):
         default_factory=dict,
     )
 
+    @field_validator(
+        "profile_picture_url",
+    )
+    @classmethod
+    def validate_profile_picture_url(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        return _validate_http_url(value)
+
 
 class InstagramAssetDTO(BaseModel):
     model_config = ConfigDict(
@@ -65,11 +111,11 @@ class InstagramAssetDTO(BaseModel):
         extra="forbid",
     )
 
-    external_id: str
+    external_id: str = ""
 
     asset_type: InstagramAssetType
 
-    source_url: HttpUrl
+    source_url: str
 
     position: int = Field(
         ge=0,
@@ -94,6 +140,21 @@ class InstagramAssetDTO(BaseModel):
         default_factory=dict,
     )
 
+    @field_validator(
+        "source_url",
+    )
+    @classmethod
+    def validate_source_url(
+        cls,
+        value: str,
+    ) -> str:
+        validated = _validate_http_url(value)
+
+        if validated is None:
+            raise ValueError("source_url cannot be empty")
+
+        return validated
+
 
 class InstagramMediaDTO(BaseModel):
     model_config = ConfigDict(
@@ -101,16 +162,21 @@ class InstagramMediaDTO(BaseModel):
         extra="forbid",
     )
 
-    media_id: str
-    shortcode: str
+    media_id: str = Field(
+        min_length=1,
+    )
+
+    shortcode: str = Field(
+        min_length=1,
+    )
 
     media_type: InstagramMediaType
 
-    permalink: HttpUrl
+    permalink: str
 
     caption: str = ""
 
-    thumbnail_url: HttpUrl | None = None
+    thumbnail_url: str | None = None
 
     published_at: datetime | None = None
 
@@ -137,3 +203,28 @@ class InstagramMediaDTO(BaseModel):
     raw_payload: dict[str, Any] = Field(
         default_factory=dict,
     )
+
+    @field_validator(
+        "permalink",
+    )
+    @classmethod
+    def validate_permalink(
+        cls,
+        value: str,
+    ) -> str:
+        validated = _validate_http_url(value)
+
+        if validated is None:
+            raise ValueError("permalink cannot be empty")
+
+        return validated
+
+    @field_validator(
+        "thumbnail_url",
+    )
+    @classmethod
+    def validate_thumbnail_url(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        return _validate_http_url(value)

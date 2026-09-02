@@ -1,34 +1,45 @@
+from __future__ import annotations
+
+
 class ImporterError(Exception):
-    pass
+    """Base exception for importer failures."""
 
 
 class CrawlerError(ImporterError):
-    pass
+    """Base exception for crawler failures."""
 
 
 class InstagramError(CrawlerError):
-    pass
+    """Base exception for Instagram failures."""
+
+
+class InstagramProviderError(InstagramError):
+    """Generic Instagram provider failure."""
 
 
 class InstagramProfileNotFoundError(InstagramError):
-    pass
+    """Instagram profile does not exist."""
+
+
+class InstagramProfileUnavailableError(InstagramError):
+    """Instagram profile cannot currently be accessed."""
 
 
 class InstagramPrivateProfileError(InstagramError):
-    pass
+    """Instagram profile is private."""
 
 
 class InstagramAuthenticationRequiredError(InstagramError):
-    pass
+    """Instagram requires authentication."""
 
 
 class InstagramRateLimitedError(InstagramError):
-    pass
+    """Instagram rate-limited the crawler."""
+
+
+class InstagramFetchTimeoutError(InstagramError):
+    """Instagram request timed out."""
 
 
 class InstagramMediaFetchError(InstagramError):
-    pass
-
-
-class SeloraImportError(ImporterError):
-    pass
+    """A media item could not be fetched."""

@@ -16,7 +16,7 @@
   </section>
 
   <section class="card crawl-card">
-    <form method="post" action="{{ url_for('web.start_crawl') }}" class="crawl-form">
+    <form id="crawlForm" method="post" action="{{ url_for('web.start_crawl') }}" class="crawl-form">
       <div class="form-field">
         <label for="username" class="form-label">پیج اینستاگرام</label>
 
@@ -58,4 +58,16 @@
       <p class="feature-card__description">خروجی نهایی به‌صورت Draft به Django سلورا ارسال می‌شود.</p>
     </article>
   </section>
+
+  <script>
+    document.getElementById('crawlForm').addEventListener('submit', function (e) {
+      const message = "مطمئن باشید به اینستاگرام دسترسی دارید (اگر فیلتر است باید ترجیحاً یک فیلترشکن از نوع کلودفلر روشن باشد).\n\nآیا متصل هستید؟";
+      
+      const isConnected = confirm(message);
+
+      if (!isConnected) {
+        e.preventDefault(); // در صورت انتخاب «کنسل»، از ارسال فرم جلوگیری می‌شود
+      }
+    });
+  </script>
 {% endblock %}
