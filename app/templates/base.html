@@ -1,24 +1,67 @@
 <!DOCTYPE html>
+
 <html lang="fa" dir="rtl">
   <head>
     <meta charset="utf-8" />
 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
+    <meta name="theme-color" content="#4f46e5" />
+
+    <meta name="color-scheme" content="light" />
+
     <title>
       {% block title %}
-        Instagram Shop Importer
+        Selora Importer
       {% endblock %}
     </title>
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}" />
+    <!--     
+        Prevent the browser from automatically requesting
+        /favicon.ico until we add the real Selora favicon.
+         -->
+    <link rel="icon" href="data:," />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}" />
+
+    {% block head %}
+
+    {% endblock %}
   </head>
 
   <body>
-    <main class="container">
-      {% block content %}
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="app-header__inner">
+          <a href="{{ url_for('web.index') }}" class="brand">
+            <span class="brand__mark">S</span>
 
-      {% endblock %}
-    </main>
+            <span class="brand__content">
+              <span class="brand__title">Selora Importer</span>
+
+              <span class="brand__subtitle">Instagram Shop Migration</span>
+            </span>
+          </a>
+        </div>
+      </header>
+
+      <main class="app-main">
+        <div class="container">
+          {% block content %}
+
+          {% endblock %}
+        </div>
+      </main>
+    </div>
+
+    {% block scripts %}
+
+    {% endblock %}
   </body>
 </html>

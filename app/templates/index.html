@@ -1,27 +1,61 @@
 {% extends 'base.html' %}
 
 {% block title %}
-  Instagram Crawler
+  شروع کراول | Selora Importer
 {% endblock %}
 
 {% block content %}
-  <div class="page-header">
-    <div>
-      <h1>Instagram Shop Importer</h1>
+  <section class="hero">
+    <div class="hero__content">
+      <span class="eyebrow" dir="ltr">Instagram Migration Tool</span>
 
-      <p>آدرس یا نام کاربری فروشگاه اینستاگرام را وارد کنید.</p>
+      <h1 class="hero__title">انتقال فروشگاه اینستاگرامی به سلورا</h1>
+
+      <p class="hero__description">نام کاربری پیج اینستاگرام را وارد کنید تا محتوای فروشگاه استخراج و برای بررسی و ویرایش آماده شود.</p>
     </div>
-  </div>
+  </section>
 
-  <div class="card">
-    <form method="post" action="{{ url_for('crawler.start_crawl') }}">
-      <label for="username">Instagram username</label>
+  <section class="card crawl-card">
+    <form method="post" action="{{ url_for('web.start_crawl') }}" class="crawl-form">
+      <div class="form-field">
+        <label for="username" class="form-label">پیج اینستاگرام</label>
 
-      <div class="input-row">
-        <input id="username" name="username" type="text" placeholder="mahtabbeauty" autocomplete="off" required />
+        <div class="input-group">
+          <div class="input-wrapper">
+            <span class="input-prefix" aria-hidden="true">@</span>
 
-        <button type="submit">شروع Crawl</button>
+            <input id="username" name="username" type="text" class="form-input form-input--ltr" placeholder="mahtabbeauty" autocomplete="off" autocapitalize="off" spellcheck="false" required />
+          </div>
+
+          <button type="submit" class="button button--primary">شروع کراول</button>
+        </div>
       </div>
     </form>
-  </div>
+  </section>
+
+  <section class="feature-grid">
+    <article class="feature-card">
+      <div class="feature-card__number">01</div>
+
+      <h2 class="feature-card__title">استخراج محتوا</h2>
+
+      <p class="feature-card__description">پست‌ها، ریلزها، آلبوم‌ها و رسانه‌های پیج دریافت می‌شوند.</p>
+    </article>
+
+    <article class="feature-card">
+      <div class="feature-card__number">02</div>
+
+      <h2 class="feature-card__title">بررسی و ویرایش</h2>
+
+      <p class="feature-card__description">محتوا و تصاویر را قبل از ارسال انتخاب و ویرایش می‌کنید.</p>
+    </article>
+
+    <article class="feature-card">
+      <div class="feature-card__number">03</div>
+
+      <h2 class="feature-card__title">ارسال به سلورا</h2>
+
+      <p class="feature-card__description">خروجی نهایی به‌صورت Draft به Django سلورا ارسال می‌شود.</p>
+    </article>
+  </section>
 {% endblock %}
