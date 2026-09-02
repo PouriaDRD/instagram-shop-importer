@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  Instagram Crawler
+{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div>
+      <h1>Instagram Shop Importer</h1>
+
+      <p>آدرس یا نام کاربری فروشگاه اینستاگرام را وارد کنید.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <form method="post" action="{{ url_for('crawler.start_crawl') }}">
+      <label for="username">Instagram username</label>
+
+      <div class="input-row">
+        <input id="username" name="username" type="text" placeholder="mahtabbeauty" autocomplete="off" required />
+
+        <button type="submit">شروع Crawl</button>
+      </div>
+    </form>
+  </div>
+{% endblock %}

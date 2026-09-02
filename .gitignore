@@ -100,13 +100,23 @@ target/
 __pycache__/
 local_settings.py
 
-.env
 *.sqlite3
 .venv
 
 media
 
+# Environments
+.env
+*.env
+.env.dev
+.env.prod
+.env.test
 
+.env.development
+.env.production
+.env.test
+.env.staging
+.env.local
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -146,9 +156,7 @@ MANIFEST
 db.sqlite3-journal
 media/
 staticfiles/
-static/
 local_settings.py
-.env
 .venv/
 env/
 venv/
@@ -196,10 +204,7 @@ yarn-error.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# Environments
-.env
-.env.*
-*.env.*
+
 
 # PyCharm
 .idea/*
@@ -255,7 +260,6 @@ docs/_build/
 .python-version
 
 # Virtual Environments
-.env
 .venv/
 env/
 venv/
@@ -272,4 +276,25 @@ logs/
 # AWS credential files
 *.pem
 
+
+
+.venv/
+__pycache__/
+*.py[cod]
+
+
+instance/
+instagram_debug/
+
+.pytest_cache/
+.idea/
+.vscode/
+
+playwright/.auth/
+storage_state.json
+
+
+
 # End of https://www.toptal.com/developers/gitignore/api/python,django
+
+
