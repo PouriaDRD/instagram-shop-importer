@@ -3,7 +3,10 @@ from __future__ import annotations
 import json
 import logging
 import re
-from collections.abc import Iterator
+from collections.abc import (
+    Callable,
+    Iterator,
+)
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Final
@@ -83,6 +86,9 @@ class PlaywrightInstagramProvider:
             Config.PLAYWRIGHT_TIMEOUT_MS if timeout_ms is None else timeout_ms
         )
 
+        if self._timeout_ms <= 0:
+            raise ValueError("Playwright timeout must be positive.")
+
     # =========================================================
     # Public API
     # =========================================================
@@ -110,7 +116,11 @@ class PlaywrightInstagramProvider:
 
         except PlaywrightTimeoutError as exc:
             raise InstagramFetchTimeoutError(
-                ("Instagram profile request timed out " f"for @{normalized_username}")
+                (
+                    "Instagram profile request "
+                    "timed out for "
+                    f"@{normalized_username}"
+                )
             ) from exc
 
         logger.info(
@@ -128,8 +138,9 @@ class PlaywrightInstagramProvider:
     ) -> tuple[InstagramMediaDTO, ...]:
         normalized_username = self._normalize_username(username)
 
-        if max_items is not None and max_items <= 0:
-            return ()
+        if max_items is not None:
+            if max_items <= 0:
+                return ()
 
         logger.info(
             "Discovering media for @%s",
@@ -173,19 +184,25 @@ class PlaywrightInstagramProvider:
                             media_url=media_url,
                         )
 
+                    except InstagramRateLimitedError:
+                        raise
+
                     except InstagramMediaFetchError:
                         logger.exception(
                             "Failed to fetch media %s",
                             shortcode,
                         )
-
                         continue
 
                     media_items.append(media)
 
         except PlaywrightTimeoutError as exc:
             raise InstagramFetchTimeoutError(
-                ("Instagram media discovery timed out " f"for @{normalized_username}")
+                (
+                    "Instagram media discovery "
+                    "timed out for "
+                    f"@{normalized_username}"
+                )
             ) from exc
 
         return tuple(media_items)
@@ -202,6 +219,19 @@ class PlaywrightInstagramProvider:
         browser: Browser | None = None
         context: BrowserContext | None = None
 
+        #
+        # IMPORTANT:
+        # Setup exceptions are translated here.
+        #
+        # Exceptions raised AFTER `yield` must NOT be translated,
+        # otherwise useful exceptions such as:
+        #
+        # InstagramPrivateProfileError
+        # InstagramProfileNotFoundError
+        # InstagramRateLimitedError
+        #
+        # would incorrectly become InstagramProviderError.
+        #
         try:
             playwright = sync_playwright().start()
 
@@ -212,8 +242,8 @@ class PlaywrightInstagramProvider:
             context = browser.new_context(
                 locale="en-US",
                 viewport={
-                    "width": DEFAULT_VIEWPORT_WIDTH,
-                    "height": DEFAULT_VIEWPORT_HEIGHT,
+                    "width": (DEFAULT_VIEWPORT_WIDTH),
+                    "height": (DEFAULT_VIEWPORT_HEIGHT),
                 },
                 user_agent=(
                     "Mozilla/5.0 "
@@ -227,25 +257,86 @@ class PlaywrightInstagramProvider:
 
             context.set_default_timeout(self._timeout_ms)
 
-            yield context
-
         except PlaywrightTimeoutError:
+            self._cleanup_browser_resources(
+                context=context,
+                browser=browser,
+                playwright=playwright,
+            )
             raise
 
         except Exception as exc:
+            self._cleanup_browser_resources(
+                context=context,
+                browser=browser,
+                playwright=playwright,
+            )
+
             raise InstagramProviderError(
                 ("Failed to initialize " "Instagram browser session.")
             ) from exc
 
+        if context is None:
+            self._cleanup_browser_resources(
+                context=context,
+                browser=browser,
+                playwright=playwright,
+            )
+
+            raise InstagramProviderError(
+                ("Instagram browser context " "was not initialized.")
+            )
+
+        try:
+            yield context
+
         finally:
-            if context is not None:
-                context.close()
+            self._cleanup_browser_resources(
+                context=context,
+                browser=browser,
+                playwright=playwright,
+            )
 
-            if browser is not None:
-                browser.close()
+    @classmethod
+    def _cleanup_browser_resources(
+        cls,
+        *,
+        context: BrowserContext | None,
+        browser: Browser | None,
+        playwright: Playwright | None,
+    ) -> None:
+        if context is not None:
+            cls._safe_cleanup_call(
+                name="browser context",
+                callback=context.close,
+            )
 
-            if playwright is not None:
-                playwright.stop()
+        if browser is not None:
+            cls._safe_cleanup_call(
+                name="browser",
+                callback=browser.close,
+            )
+
+        if playwright is not None:
+            cls._safe_cleanup_call(
+                name="Playwright",
+                callback=playwright.stop,
+            )
+
+    @staticmethod
+    def _safe_cleanup_call(
+        *,
+        name: str,
+        callback: Callable[[], Any],
+    ) -> None:
+        try:
+            callback()
+
+        except Exception:
+            logger.exception(
+                ("Failed to clean up " "Instagram %s"),
+                name,
+            )
 
     # =========================================================
     # Profile
@@ -296,23 +387,23 @@ class PlaywrightInstagramProvider:
         username: str,
         status_code: int | None,
     ) -> None:
+        if status_code == 429:
+            raise InstagramRateLimitedError("Instagram rate limit reached.")
+
         body = page.locator("body").inner_text().strip()
 
         body_lower = body.lower()
-
-        if status_code == 429:
-            raise InstagramRateLimitedError("Instagram rate limit reached.")
 
         not_found_markers = (
             "sorry, this page isn't available",
             "profile isn't available",
             "page isn't available",
-            "the link you followed may be broken",
+            ("the link you followed " "may be broken"),
         )
 
         if any(marker in body_lower for marker in not_found_markers):
             raise InstagramProfileNotFoundError(
-                ("Instagram profile was not found: " f"@{username}")
+                ("Instagram profile was " "not found: " f"@{username}")
             )
 
         private_markers = (
@@ -322,7 +413,7 @@ class PlaywrightInstagramProvider:
 
         if any(marker in body_lower for marker in private_markers):
             raise InstagramPrivateProfileError(
-                ("Instagram profile is private: " f"@{username}")
+                ("Instagram profile is " "private: " f"@{username}")
             )
 
         authentication_markers = (
@@ -333,8 +424,10 @@ class PlaywrightInstagramProvider:
         if not self._has_profile_content(page) and any(
             marker in body_lower for marker in authentication_markers
         ):
-            raise InstagramAuthenticationRequiredError(
-                ("Instagram authentication is required " f"for @{username}")
+            raise (
+                InstagramAuthenticationRequiredError(
+                    ("Instagram authentication " "is required for " f"@{username}")
+                )
             )
 
         unavailable_markers = (
@@ -343,15 +436,19 @@ class PlaywrightInstagramProvider:
         )
 
         if any(marker in body_lower for marker in unavailable_markers):
-            raise InstagramProfileUnavailableError(
-                ("Instagram profile is temporarily unavailable: " f"@{username}")
+            raise (
+                InstagramProfileUnavailableError(
+                    ("Instagram profile is " "temporarily unavailable: " f"@{username}")
+                )
             )
 
     def _has_profile_content(
         self,
         page: Page,
     ) -> bool:
-        return page.locator('a[href*="/p/"], ' 'a[href*="/reel/"]').count() > 0
+        locator = page.locator(('a[href*="/p/"], ' 'a[href*="/reel/"]'))
+
+        return locator.count() > 0
 
     def _extract_profile_payload(
         self,
@@ -383,13 +480,10 @@ class PlaywrightInstagramProvider:
 
                 node_username = node.get("username")
 
-                if (
-                    isinstance(
-                        node_username,
-                        str,
-                    )
-                    and node_username.lower() == username.lower()
-                ):
+                if isinstance(
+                    node_username,
+                    str,
+                ) and (node_username.lower() == username.lower()):
                     candidates.append(node)
 
         if not candidates:
@@ -397,7 +491,7 @@ class PlaywrightInstagramProvider:
 
         return max(
             candidates,
-            key=self._profile_payload_score,
+            key=(self._profile_payload_score),
         )
 
     @staticmethod
@@ -451,28 +545,34 @@ class PlaywrightInstagramProvider:
             full_name=self._as_string(payload.get("full_name")),
             biography=self._as_string(payload.get("biography")),
             profile_picture_url=(profile_picture_url or None),
-            followers_count=self._first_int(
-                payload,
-                (
-                    "follower_count",
-                    "followers_count",
-                ),
+            followers_count=(
+                self._first_int(
+                    payload,
+                    (
+                        "follower_count",
+                        "followers_count",
+                    ),
+                )
             ),
-            following_count=self._first_int(
-                payload,
-                (
-                    "following_count",
-                    "follow_count",
-                ),
+            following_count=(
+                self._first_int(
+                    payload,
+                    (
+                        "following_count",
+                        "follow_count",
+                    ),
+                )
             ),
-            media_count=self._first_int(
-                payload,
-                (
-                    "media_count",
-                    "post_count",
-                ),
+            media_count=(
+                self._first_int(
+                    payload,
+                    (
+                        "media_count",
+                        "post_count",
+                    ),
+                )
             ),
-            is_private=self._as_optional_bool(payload.get("is_private")),
+            is_private=(self._as_optional_bool(payload.get("is_private"))),
             raw_payload=payload,
         )
 
@@ -485,7 +585,7 @@ class PlaywrightInstagramProvider:
         description = (
             self._meta_content(
                 page,
-                'meta[property="og:description"]',
+                ("meta[property=" '"og:description"]'),
             )
             or ""
         )
@@ -528,13 +628,13 @@ class PlaywrightInstagramProvider:
             full_name=full_name,
             biography="",
             profile_picture_url=(image or None),
-            followers_count=followers_count,
-            following_count=following_count,
+            followers_count=(followers_count),
+            following_count=(following_count),
             media_count=media_count,
             is_private=None,
             raw_payload={
                 "og:title": title,
-                "og:description": description,
+                "og:description": (description),
                 "og:image": image,
             },
         )
@@ -552,7 +652,7 @@ class PlaywrightInstagramProvider:
     ) -> tuple[str, ...]:
         profile_url = f"{INSTAGRAM_BASE_URL}/" f"{username}/"
 
-        page.goto(
+        response = page.goto(
             profile_url,
             wait_until="domcontentloaded",
             timeout=self._timeout_ms,
@@ -563,7 +663,7 @@ class PlaywrightInstagramProvider:
         self._validate_profile_page(
             page=page,
             username=username,
-            status_code=None,
+            status_code=(response.status if response is not None else None),
         )
 
         discovered: list[str] = []
@@ -613,7 +713,7 @@ class PlaywrightInstagramProvider:
         result: list[str],
         seen: set[str],
     ) -> None:
-        anchors = page.locator('a[href*="/p/"], ' 'a[href*="/reel/"]')
+        anchors = page.locator(('a[href*="/p/"], ' 'a[href*="/reel/"]'))
 
         for index in range(anchors.count()):
             href = anchors.nth(index).get_attribute("href")
@@ -655,7 +755,7 @@ class PlaywrightInstagramProvider:
             page.wait_for_timeout(MEDIA_SETTLE_MS)
 
             if response is not None and response.status == 429:
-                raise InstagramRateLimitedError("Instagram rate limit reached.")
+                raise (InstagramRateLimitedError(("Instagram rate " "limit reached.")))
 
             payload = self._extract_embedded_media_payload(
                 page=page,
@@ -680,7 +780,7 @@ class PlaywrightInstagramProvider:
 
         except PlaywrightTimeoutError as exc:
             raise InstagramMediaFetchError(
-                ("Instagram media request timed out: " f"{shortcode}")
+                ("Instagram media request " "timed out: " f"{shortcode}")
             ) from exc
 
         except InstagramMediaFetchError:
@@ -688,11 +788,11 @@ class PlaywrightInstagramProvider:
 
         except Exception as exc:
             raise InstagramMediaFetchError(
-                ("Failed to extract Instagram media: " f"{shortcode}")
+                ("Failed to extract " "Instagram media: " f"{shortcode}")
             ) from exc
 
     # =========================================================
-    # Embedded Instagram JSON extraction
+    # Embedded JSON extraction
     # =========================================================
 
     def _extract_embedded_media_payload(
@@ -742,17 +842,6 @@ class PlaywrightInstagramProvider:
         shortcode: str,
         candidates: list[dict[str, Any]],
     ) -> bool:
-        """
-        Recursively find media candidates.
-
-        Instagram can place carousel_media, video_versions or other
-        important fields on a parent structure instead of directly on
-        the dict whose `code` equals the shortcode.
-
-        Returns True when the current subtree contains the requested
-        shortcode.
-        """
-
         if isinstance(
             value,
             dict,
@@ -877,16 +966,6 @@ class PlaywrightInstagramProvider:
         payload: dict[str, Any],
         shortcode: str,
     ) -> dict[str, Any]:
-        """
-        Normalize parent/wrapper and shortcode-specific media data.
-
-        The actual shortcode node is used as the base because it usually
-        contains caption, counts and identity.
-
-        Rich parent structures then supplement fields such as
-        carousel_media or video_versions.
-        """
-
         media_node = self._find_shortcode_node(
             payload,
             shortcode=shortcode,
@@ -908,12 +987,10 @@ class PlaywrightInstagramProvider:
             ):
                 normalized[key] = value
 
-        rich_wrapper_fields = (
+        for key in (
             "carousel_media",
             "video_versions",
-        )
-
-        for key in rich_wrapper_fields:
+        ):
             wrapper_value = payload.get(key)
 
             if wrapper_value not in (
@@ -924,7 +1001,7 @@ class PlaywrightInstagramProvider:
             ):
                 normalized[key] = wrapper_value
 
-        if "image_versions2" not in normalized or not normalized.get("image_versions2"):
+        if not normalized.get("image_versions2"):
             wrapper_images = payload.get("image_versions2")
 
             if wrapper_images:
@@ -1018,8 +1095,8 @@ class PlaywrightInstagramProvider:
             caption=caption,
             thumbnail_url=(thumbnail_url or None),
             published_at=published_at,
-            like_count=self._as_optional_int(payload.get("like_count")),
-            comment_count=self._as_optional_int(payload.get("comment_count")),
+            like_count=(self._as_optional_int(payload.get("like_count"))),
+            comment_count=(self._as_optional_int(payload.get("comment_count"))),
             view_count=view_count,
             assets=assets,
             raw_payload=payload,
@@ -1095,16 +1172,45 @@ class PlaywrightInstagramProvider:
                     carousel_child=True,
                 )
 
-            return tuple(assets)
+        else:
+            self._append_media_node_assets(
+                assets=assets,
+                node=payload,
+                position=0,
+                carousel_child=False,
+            )
 
-        self._append_media_node_assets(
-            assets=assets,
-            node=payload,
-            position=0,
-            carousel_child=False,
-        )
+        return self._deduplicate_assets(assets)
 
-        return tuple(assets)
+    @staticmethod
+    def _deduplicate_assets(
+        assets: list[InstagramAssetDTO],
+    ) -> tuple[InstagramAssetDTO, ...]:
+        result: list[InstagramAssetDTO] = []
+
+        seen: set[
+            tuple[
+                InstagramAssetType,
+                str,
+                int,
+            ]
+        ] = set()
+
+        for asset in assets:
+            key = (
+                asset.asset_type,
+                asset.source_url,
+                asset.position,
+            )
+
+            if key in seen:
+                continue
+
+            seen.add(key)
+
+            result.append(asset)
+
+        return tuple(result)
 
     def _append_media_node_assets(
         self,
@@ -1136,11 +1242,11 @@ class PlaywrightInstagramProvider:
                         asset_type=asset_type,
                         source_url=image_url,
                         position=position,
-                        width=self._as_optional_int(image_candidate.get("width")),
-                        height=self._as_optional_int(image_candidate.get("height")),
+                        width=(self._as_optional_int(image_candidate.get("width"))),
+                        height=(self._as_optional_int(image_candidate.get("height"))),
                         metadata={
-                            "instagram_media_pk": media_pk,
-                            "carousel_child": carousel_child,
+                            "instagram_media_pk": (media_pk),
+                            "carousel_child": (carousel_child),
                         },
                     )
                 )
@@ -1157,14 +1263,14 @@ class PlaywrightInstagramProvider:
                         asset_type=(InstagramAssetType.VIDEO),
                         source_url=video_url,
                         position=position,
-                        width=self._as_optional_int(video_candidate.get("width")),
-                        height=self._as_optional_int(video_candidate.get("height")),
+                        width=(self._as_optional_int(video_candidate.get("width"))),
+                        height=(self._as_optional_int(video_candidate.get("height"))),
                         duration_seconds=(
                             self._as_optional_float(node.get("video_duration"))
                         ),
                         metadata={
-                            "instagram_media_pk": media_pk,
-                            "carousel_child": carousel_child,
+                            "instagram_media_pk": (media_pk),
+                            "carousel_child": (carousel_child),
                         },
                     )
                 )
@@ -1293,7 +1399,7 @@ class PlaywrightInstagramProvider:
 
         og_description = self._meta_content(
             page,
-            'meta[property="og:description"]',
+            ("meta[property=" '"og:description"]'),
         )
 
         og_image = self._meta_content(
@@ -1316,10 +1422,7 @@ class PlaywrightInstagramProvider:
             else InstagramMediaType.IMAGE
         )
 
-        assets: tuple[
-            InstagramAssetDTO,
-            ...,
-        ] = ()
+        assets: tuple[InstagramAssetDTO, ...] = ()
 
         if og_image:
             assets = (
@@ -1327,7 +1430,7 @@ class PlaywrightInstagramProvider:
                     external_id=shortcode,
                     asset_type=(
                         InstagramAssetType.THUMBNAIL
-                        if media_type == InstagramMediaType.REEL
+                        if (media_type == InstagramMediaType.REEL)
                         else InstagramAssetType.IMAGE
                     ),
                     source_url=og_image,
@@ -1349,7 +1452,7 @@ class PlaywrightInstagramProvider:
             assets=assets,
             raw_payload={
                 "og:title": og_title,
-                "og:description": og_description,
+                "og:description": (og_description),
                 "og:image": og_image,
                 "fallback": True,
             },
@@ -1388,14 +1491,14 @@ class PlaywrightInstagramProvider:
             dict,
         ):
             for child in value.values():
-                yield from self._walk_json(child)
+                yield from (self._walk_json(child))
 
         elif isinstance(
             value,
             list,
         ):
             for child in value:
-                yield from self._walk_json(child)
+                yield from (self._walk_json(child))
 
     # =========================================================
     # URL helpers
@@ -1405,18 +1508,52 @@ class PlaywrightInstagramProvider:
     def _normalize_username(
         username: str,
     ) -> str:
-        normalized = username.strip().lstrip("@").strip("/")
+        raw = username.strip()
 
-        if not normalized:
-            raise ValueError("Instagram username cannot be empty.")
+        if not raw:
+            raise ValueError(("Instagram username " "cannot be empty."))
 
-        if "/" in normalized:
-            parsed = urlparse(normalized)
+        raw = raw.lstrip("@")
+
+        lowered = raw.lower()
+
+        looks_like_url = (
+            lowered.startswith("http://")
+            or lowered.startswith("https://")
+            or lowered.startswith("instagram.com/")
+            or lowered.startswith("www.instagram.com/")
+        )
+
+        if looks_like_url:
+            if not lowered.startswith(
+                (
+                    "http://",
+                    "https://",
+                )
+            ):
+                raw = "https://" + raw
+
+            parsed = urlparse(raw)
 
             path_parts = [part for part in parsed.path.split("/") if part]
 
-            if path_parts:
-                normalized = path_parts[0]
+            if not path_parts:
+                raise ValueError(
+                    ("Instagram profile URL " "does not contain a username.")
+                )
+
+            normalized = path_parts[0]
+
+        else:
+            normalized = raw.strip("/")
+
+        normalized = normalized.strip().lstrip("@").strip("/")
+
+        if not normalized:
+            raise ValueError(("Instagram username " "cannot be empty."))
+
+        if "/" in normalized:
+            raise ValueError(("Invalid Instagram " "username."))
 
         return normalized
 
@@ -1465,11 +1602,11 @@ class PlaywrightInstagramProvider:
             if part in {
                 "p",
                 "reel",
-            } and index + 1 < len(path_parts):
+            } and (index + 1 < len(path_parts)):
                 return path_parts[index + 1]
 
         raise InstagramMediaFetchError(
-            ("Could not determine shortcode from URL: " f"{media_url}")
+            ("Could not determine " "shortcode from URL: " f"{media_url}")
         )
 
     # =========================================================
@@ -1588,7 +1725,7 @@ class PlaywrightInstagramProvider:
         )
 
         comment_match = re.search(
-            r"([\d,.]+)\s+comments?",
+            (r"([\d,.]+)" r"\s+comments?"),
             description,
             flags=re.IGNORECASE,
         )

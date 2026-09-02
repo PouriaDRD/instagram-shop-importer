@@ -24,7 +24,7 @@ class CrawlService:
         *,
         username: str,
     ) -> CrawlSession:
-        normalized_username = username.strip().lstrip("@")
+        normalized_username = username.strip().lstrip("@").strip()
 
         if not normalized_username:
             raise ValueError("Instagram username is required.")
@@ -39,22 +39,33 @@ class CrawlService:
         session_id: str,
         max_items: int | None = None,
     ) -> None:
-        session = self._repository.get(session_id=session_id)
+        session = self._repository.get(
+            session_id=session_id,
+        )
 
         if session is None:
             raise ValueError(("Crawl session does not exist: " f"{session_id}"))
 
         username = session.username
 
-        self._repository.mark_running(session=session)
-
         logger.info(
-            "Crawl started for @%s",
+            "Crawl starting for @%s",
             username,
         )
 
         try:
-            profile = self._provider.fetch_profile(username=username)
+            self._repository.mark_running(
+                session=session,
+            )
+
+            logger.info(
+                "Crawl started for @%s",
+                username,
+            )
+
+            profile = self._provider.fetch_profile(
+                username=username,
+            )
 
             self._repository.save_profile(
                 session=session,
@@ -71,7 +82,9 @@ class CrawlService:
                 media_items=media_items,
             )
 
-            self._repository.mark_completed(session=session)
+            self._repository.mark_completed(
+                session=session,
+            )
 
         except Exception as exc:
             logger.exception(
@@ -79,9 +92,9 @@ class CrawlService:
                 username,
             )
 
-            self._repository.mark_failed(
+            self._mark_failed_safely(
                 session=session,
-                error_message=str(exc),
+                error=exc,
             )
 
             return
@@ -91,3 +104,36 @@ class CrawlService:
             username,
             session.crawled_media_count,
         )
+
+    def _mark_failed_safely(
+        self,
+        *,
+        session: CrawlSession,
+        error: Exception,
+    ) -> None:
+        error_message = self._safe_error_message(
+            error,
+        )
+
+        try:
+            self._repository.mark_failed(
+                session=session,
+                error_message=error_message,
+            )
+
+        except Exception:
+            logger.exception(
+                ("Failed to persist failed " "crawl state for session %s"),
+                session.id,
+            )
+
+    @staticmethod
+    def _safe_error_message(
+        error: Exception,
+    ) -> str:
+        message = str(error).strip()
+
+        if message:
+            return message[:2000]
+
+        return error.__class__.__name__
