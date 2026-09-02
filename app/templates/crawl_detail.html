@@ -1,0 +1,195 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}
+  @{{ session.username }} | Selora Importer
+{% endblock %}
+
+{% block breadcrumb %}
+  <nav class="page-breadcrumb" aria-label="مسیر صفحه">
+    <a href="{{ url_for('web.index') }}">شروع کراول</a>
+
+    <span class="page-breadcrumb__separator">/</span>
+
+    <a href="{{ url_for('web.crawl_list') }}">نشست‌ها</a>
+
+    <span class="page-breadcrumb__separator">/</span>
+
+    <span class="page-breadcrumb__current" dir="ltr">@{{ session.username }}</span>
+  </nav>
+{% endblock %}
+
+{% block content %}
+  <section class="crawl-detail-header">
+    <div class="crawl-profile">
+      {% if session.profile_picture_url %}
+        <img src="{{ session.profile_picture_url }}" alt="@{{ session.username }}" class="crawl-profile__avatar" />
+      {% else %}
+        <div class="crawl-profile__avatar-placeholder" aria-hidden="true">{{ session.username[:1]|upper }}</div>
+      {% endif %}
+
+      <div class="crawl-profile__content">
+        <h1 class="crawl-profile__name">{{ session.full_name or session.username }}</h1>
+
+        <div class="crawl-profile__username" dir="ltr">@{{ session.username }}</div>
+
+        {% if session.biography %}
+          <p class="crawl-profile__bio">{{ session.biography }}</p>
+        {% endif %}
+
+        <div class="crawl-profile__stats">
+          <span class="crawl-profile__stat">
+            <strong>{{ session.followers_count or 0 }}</strong>
+
+            دنبال‌کننده
+          </span>
+
+          <span class="crawl-profile__stat">
+            <strong>{{ session.following_count or 0 }}</strong>
+
+            دنبال‌شونده
+          </span>
+
+          {% if session.instagram_media_count is not none %}
+            <span class="crawl-profile__stat">
+              <strong>{{ session.instagram_media_count }}</strong>
+
+              محتوای اینستاگرام
+            </span>
+          {% endif %}
+
+          <span class="crawl-profile__stat">
+            <strong>{{ session.crawled_media_count }}</strong>
+
+            دریافت‌شده
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      {% if session.status == 'completed' %}
+        <span class="session-status session-status--completed">تکمیل‌شده</span>
+      {% elif session.status == 'running' %}
+        <span class="session-status session-status--running">در حال اجرا</span>
+      {% elif session.status == 'failed' %}
+        <span class="session-status session-status--failed">ناموفق</span>
+      {% else %}
+        <span class="session-status session-status--pending">در انتظار</span>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="card session-timing-card">
+    <div class="session-timing">
+      <div class="session-timing__item">
+        <span class="session-timing__label">ایجاد نشست</span>
+
+        <strong class="session-timing__value">{{ session.created_at|iran_datetime }}</strong>
+      </div>
+
+      {% if session.started_at %}
+        <div class="session-timing__item">
+          <span class="session-timing__label">شروع کراول</span>
+
+          <strong class="session-timing__value">{{ session.started_at|iran_datetime }}</strong>
+        </div>
+      {% endif %}
+
+      {% if session.completed_at %}
+        <div class="session-timing__item">
+          <span class="session-timing__label">پایان کراول</span>
+
+          <strong class="session-timing__value">{{ session.completed_at|iran_datetime }}</strong>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if session.status == 'failed' and session.error_message %}
+    <div class="crawl-error">{{ session.error_message }}</div>
+  {% endif %}
+
+  <section class="crawl-media-section">
+    <div class="crawl-section-header">
+      <h2 class="crawl-section-title">محتوای استخراج‌شده</h2>
+
+      <span class="crawl-section-count">{{ session.media|length }} مورد</span>
+    </div>
+
+    {% if session.media %}
+      <div class="crawl-media-grid">
+        {% for media in session.media %}
+          <article class="crawl-media-card">
+            <div class="crawl-media-card__media">
+              {% if media.thumbnail_url %}
+                <img src="{{ media.thumbnail_url }}" alt="{{ media.shortcode }}" loading="lazy" />
+              {% else %}
+                <div class="crawl-media-card__placeholder">تصویر موجود نیست</div>
+              {% endif %}
+
+              <span class="crawl-media-card__type">
+                {% if media.media_type == 'reel' %}
+                  Reel
+                {% elif media.media_type == 'carousel' %}
+                  Carousel
+                {% elif media.media_type == 'video' %}
+                  Video
+                {% elif media.media_type == 'image' %}
+                  Image
+                {% else %}
+                  {{ media.media_type }}
+                {% endif %}
+              </span>
+            </div>
+
+            <div class="crawl-media-card__body">
+              <div class="crawl-media-card__shortcode">{{ media.shortcode }}</div>
+
+              {% if media.caption %}
+                <p class="crawl-media-card__caption">{{ media.caption }}</p>
+              {% else %}
+                <p class="crawl-media-card__caption crawl-media-card__caption--empty">بدون کپشن</p>
+              {% endif %}
+
+              <div class="crawl-media-card__meta">
+                <span>
+                  {{ media.assets|length }}
+                  فایل
+                </span>
+
+                {% if media.like_count is not none %}
+                  <span>
+                    {{ media.like_count }}
+                    لایک
+                  </span>
+                {% endif %}
+
+                {% if media.comment_count is not none %}
+                  <span>
+                    {{ media.comment_count }}
+                    کامنت
+                  </span>
+                {% endif %}
+
+                {% if media.view_count is not none %}
+                  <span>
+                    {{ media.view_count }}
+                    بازدید
+                  </span>
+                {% endif %}
+              </div>
+
+              {% if media.published_at %}
+                <div class="crawl-media-card__date">{{ media.published_at|iran_datetime }}</div>
+              {% endif %}
+
+              <a href="{{ media.permalink }}" target="_blank" rel="noopener noreferrer" class="crawl-media-card__link">مشاهده در اینستاگرام</a>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="crawl-empty">محتوایی برای این نشست دریافت نشده است.</div>
+    {% endif %}
+  </section>
+{% endblock %}

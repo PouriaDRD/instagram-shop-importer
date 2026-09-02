@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  نشست‌های کراول | Selora Importer
+{% endblock %}
+
+{% block breadcrumb %}
+  <nav class="page-breadcrumb" aria-label="مسیر صفحه">
+    <a href="{{ url_for('web.index') }}">شروع کراول</a>
+
+    <span class="page-breadcrumb__separator">/</span>
+
+    <span class="page-breadcrumb__current">نشست‌ها</span>
+  </nav>
+{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <div>
+      <span class="eyebrow" dir="ltr">Crawl Sessions</span>
+
+      <h1 class="page-title">نشست‌های کراول</h1>
+
+      <p class="page-description">تاریخچه‌ی پیج‌هایی که برای استخراج و انتقال به سلورا بررسی شده‌اند.</p>
+    </div>
+
+    <a href="{{ url_for('web.index') }}" class="button button--primary page-header__action">کراول جدید</a>
+  </section>
+
+  <section class="card sessions-card">
+    {% if sessions %}
+      <div class="sessions-table-wrapper">
+        <table class="sessions-table">
+          <thead>
+            <tr>
+              <th>پیج</th>
+
+              <th>وضعیت</th>
+
+              <th>محتوا</th>
+
+              <th>زمان ایجاد</th>
+
+              <th>زمان پایان</th>
+
+              <th class="sessions-table__actions-heading">عملیات</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for crawl_session in sessions %}
+              <tr>
+                <td>
+                  <div class="session-profile">
+                    {% if crawl_session.profile_picture_url %}
+                      <img src="{{ crawl_session.profile_picture_url }}" alt="@{{ crawl_session.username }}" class="session-profile__avatar" loading="lazy" />
+                    {% else %}
+                      <div class="session-profile__avatar-placeholder" aria-hidden="true">{{ crawl_session.username[:1]|upper }}</div>
+                    {% endif %}
+
+                    <div class="session-profile__content">
+                      <div class="session-profile__name">{{ crawl_session.full_name or crawl_session.username }}</div>
+
+                      <div class="session-profile__username" dir="ltr">@{{ crawl_session.username }}</div>
+                    </div>
+                  </div>
+                </td>
+
+                <td>
+                  {% if crawl_session.status == 'completed' %}
+                    <span class="status-badge status-badge--completed">تکمیل‌شده</span>
+                  {% elif crawl_session.status == 'running' %}
+                    <span class="status-badge status-badge--running">
+                      <span class="status-badge__dot status-badge__dot--pulse" aria-hidden="true"></span>
+
+                      در حال اجرا
+                    </span>
+                  {% elif crawl_session.status == 'failed' %}
+                    <span class="status-badge status-badge--failed">ناموفق</span>
+                  {% else %}
+                    <span class="status-badge status-badge--pending">در انتظار</span>
+                  {% endif %}
+                </td>
+
+                <td>
+                  <span class="session-media-count">{{ crawl_session.crawled_media_count }}</span>
+                </td>
+
+                <td>
+                  <span class="session-date">{{ crawl_session.created_at|iran_datetime }}</span>
+                </td>
+
+                <td>
+                  <span class="session-date">{{ crawl_session.completed_at|iran_datetime }}</span>
+                </td>
+
+                <td>
+                  <a href="{{ url_for('web.crawl_detail', session_id=crawl_session.id) }}" class="button button--secondary button--small">مشاهده</a>
+                </td>
+              </tr>
+
+              {% if crawl_session.status == 'failed' and crawl_session.error_message %}
+                <tr class="session-error-row">
+                  <td colspan="6">
+                    <div class="session-error-message">{{ crawl_session.error_message }}</div>
+                  </td>
+                </tr>
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-state__icon">S</div>
+
+        <h2 class="empty-state__title">هنوز نشستی وجود ندارد</h2>
+
+        <p class="empty-state__description">اولین پیج اینستاگرامی را برای استخراج محتوا وارد کنید.</p>
+
+        <a href="{{ url_for('web.index') }}" class="button button--primary">شروع اولین کراول</a>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

@@ -4,6 +4,109 @@
   شروع کراول | Selora Importer
 {% endblock %}
 
+{% block head %}
+  <style>
+    .crawl-status {
+      display: none;
+      align-items: center;
+      gap: 14px;
+      margin-top: 18px;
+      padding: 16px 18px;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      background: #fafafa;
+    }
+    
+    .crawl-status.is-visible {
+      display: flex;
+    }
+    
+    .crawl-status.is-success {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+    
+    .crawl-status.is-error {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+    
+    .crawl-status__spinner {
+      width: 22px;
+      height: 22px;
+      flex: 0 0 22px;
+      border: 2px solid #e5e7eb;
+      border-top-color: #4f46e5;
+      border-radius: 50%;
+      animation: crawl-spin 0.75s linear infinite;
+    }
+    
+    .crawl-status.is-success .crawl-status__spinner,
+    .crawl-status.is-error .crawl-status__spinner {
+      display: none;
+    }
+    
+    .crawl-status__content {
+      min-width: 0;
+    }
+    
+    .crawl-status__title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      color: #111827;
+    }
+    
+    .crawl-status__description {
+      margin: 4px 0 0;
+      font-size: 13px;
+      line-height: 1.8;
+      color: #6b7280;
+    }
+    
+    .crawl-submit {
+      min-width: 155px;
+    }
+    
+    .crawl-submit__content {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+    }
+    
+    .crawl-submit__spinner {
+      display: none;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: crawl-spin 0.7s linear infinite;
+    }
+    
+    .crawl-submit.is-loading .crawl-submit__spinner {
+      display: inline-block;
+    }
+    
+    .crawl-submit:disabled {
+      cursor: wait;
+      opacity: 0.85;
+    }
+    
+    .crawl-form.is-loading .form-input {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+    
+    @keyframes crawl-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+{% endblock %}
+
 {% block content %}
   <section class="hero">
     <div class="hero__content">
@@ -20,14 +123,40 @@
       <div class="form-field">
         <label for="username" class="form-label">پیج اینستاگرام</label>
 
-        <div class="input-group">
-          <div class="input-wrapper">
-            <span class="input-prefix" aria-hidden="true">@</span>
+        <div class="input-wrapper">
+          <span class="input-prefix" aria-hidden="true">@</span>
 
-            <input id="username" name="username" type="text" class="form-input form-input--ltr" placeholder="mahtabbeauty" autocomplete="off" autocapitalize="off" spellcheck="false" required />
-          </div>
+          <input id="username" name="username" type="text" class="form-input form-input--ltr" placeholder="mahtabbeauty" autocomplete="off" autocapitalize="off" spellcheck="false" required />
+        </div>
+      </div>
 
-          <button type="submit" class="button button--primary">شروع کراول</button>
+      <div class="form-field">
+        <label for="max_items" class="form-label">تعداد محتوا برای دریافت</label>
+
+        <div class="input-wrapper">
+          <input id="max_items" name="max_items" type="number" class="form-input form-input--ltr" value="5" min="1" max="100" inputmode="numeric" required />
+        </div>
+
+        <p class="form-help">برای تست اولیه بهتر است ۲ تا ۵ آیتم انتخاب کنید.</p>
+      </div>
+
+      <div class="crawl-form__actions">
+        <button id="crawlSubmitButton" type="submit" class="button button--primary crawl-submit">
+          <span class="crawl-submit__content">
+            <span class="crawl-submit__spinner" aria-hidden="true"></span>
+
+            <span id="crawlButtonText">شروع کراول</span>
+          </span>
+        </button>
+      </div>
+
+      <div id="crawlStatus" class="crawl-status" role="status" aria-live="polite">
+        <div class="crawl-status__spinner" aria-hidden="true"></div>
+
+        <div class="crawl-status__content">
+          <p id="crawlStatusTitle" class="crawl-status__title">در حال جست‌وجو...</p>
+
+          <p id="crawlStatusDescription" class="crawl-status__description">در حال آماده‌سازی کراول هستیم.</p>
         </div>
       </div>
     </form>
@@ -58,16 +187,257 @@
       <p class="feature-card__description">خروجی نهایی به‌صورت Draft به Django سلورا ارسال می‌شود.</p>
     </article>
   </section>
+{% endblock %}
 
+{% block scripts %}
   <script>
-    document.getElementById('crawlForm').addEventListener('submit', function (e) {
-      const message = "مطمئن باشید به اینستاگرام دسترسی دارید (اگر فیلتر است باید ترجیحاً یک فیلترشکن از نوع کلودفلر روشن باشد).\n\nآیا متصل هستید؟";
-      
-      const isConnected = confirm(message);
-
-      if (!isConnected) {
-        e.preventDefault(); // در صورت انتخاب «کنسل»، از ارسال فرم جلوگیری می‌شود
+    ;(() => {
+      'use strict'
+    
+      const POLL_INTERVAL_MS = 2000
+    
+      const form = document.getElementById('crawlForm')
+    
+      const usernameInput = document.getElementById('username')
+    
+      const maxItemsInput = document.getElementById('max_items')
+    
+      const submitButton = document.getElementById('crawlSubmitButton')
+    
+      const buttonText = document.getElementById('crawlButtonText')
+    
+      const statusBox = document.getElementById('crawlStatus')
+    
+      const statusTitle = document.getElementById('crawlStatusTitle')
+    
+      const statusDescription = document.getElementById('crawlStatusDescription')
+    
+      if (!form || !usernameInput || !maxItemsInput || !submitButton || !buttonText || !statusBox || !statusTitle || !statusDescription) {
+        console.error('Crawl UI initialization failed.')
+    
+        return
       }
-    });
+    
+      const sleep = (milliseconds) => {
+        return new Promise((resolve) => {
+          window.setTimeout(resolve, milliseconds)
+        })
+      }
+    
+      const readJson = async (response) => {
+        try {
+          return await response.json()
+        } catch {
+          return null
+        }
+      }
+    
+      const setLoading = () => {
+        form.classList.add('is-loading')
+    
+        submitButton.classList.add('is-loading')
+    
+        submitButton.disabled = true
+    
+        usernameInput.disabled = true
+        maxItemsInput.disabled = true
+    
+        buttonText.textContent = 'در حال جست‌وجو...'
+    
+        statusBox.classList.remove('is-error', 'is-success')
+    
+        statusBox.classList.add('is-visible')
+    
+        statusTitle.textContent = 'در حال جست‌وجو...'
+    
+        statusDescription.textContent = 'در حال آماده‌سازی ارتباط با اینستاگرام هستیم.'
+      }
+    
+      const resetLoading = () => {
+        form.classList.remove('is-loading')
+    
+        submitButton.classList.remove('is-loading')
+    
+        submitButton.disabled = false
+    
+        usernameInput.disabled = false
+        maxItemsInput.disabled = false
+    
+        buttonText.textContent = 'شروع کراول'
+      }
+    
+      const showError = (message) => {
+        resetLoading()
+    
+        statusBox.classList.remove('is-success')
+    
+        statusBox.classList.add('is-visible', 'is-error')
+    
+        statusTitle.textContent = 'کراول انجام نشد'
+    
+        statusDescription.textContent = message || 'هنگام اجرای کراول خطایی رخ داد.'
+      }
+    
+      const updateRunningStatus = (data) => {
+        statusBox.classList.remove('is-error', 'is-success')
+    
+        statusBox.classList.add('is-visible')
+    
+        statusTitle.textContent = 'در حال دریافت محتوا...'
+    
+        if (data.full_name) {
+          statusDescription.textContent = `پیج ${data.full_name} پیدا شد؛ در حال دریافت پست‌ها و ریلزها هستیم.`
+    
+          return
+        }
+    
+        statusDescription.textContent = `در حال بررسی @${data.username} هستیم.`
+      }
+    
+      const showCompleted = (data) => {
+        statusBox.classList.remove('is-error')
+    
+        statusBox.classList.add('is-visible', 'is-success')
+    
+        statusTitle.textContent = 'کراول با موفقیت انجام شد'
+    
+        statusDescription.textContent = `${data.crawled_media_count} محتوا دریافت شد.`
+    
+        buttonText.textContent = 'در حال باز کردن نتایج...'
+      }
+    
+      const pollCrawlStatus = async (statusUrl) => {
+        while (true) {
+          await sleep(POLL_INTERVAL_MS)
+    
+          const response = await fetch(statusUrl, {
+            method: 'GET',
+            credentials: 'same-origin',
+            cache: 'no-store'
+          })
+    
+          const data = await readJson(response)
+    
+          if (!response.ok) {
+            throw new Error(data?.message || 'دریافت وضعیت کراول با خطا مواجه شد.')
+          }
+    
+          if (!data) {
+            throw new Error('پاسخ نامعتبر از سرور دریافت شد.')
+          }
+    
+          switch (data.status) {
+            case 'pending':
+            case 'running':
+              updateRunningStatus(data)
+    
+              break
+    
+            case 'completed':
+              showCompleted(data)
+    
+              await sleep(600)
+    
+              if (!data.detail_url) {
+                throw new Error('آدرس صفحه نتایج دریافت نشد.')
+              }
+    
+              window.location.href = data.detail_url
+    
+              return
+    
+            case 'failed':
+              showError(data.error_message || 'کراول این پیج انجام نشد.')
+    
+              return
+    
+            default:
+              throw new Error(`وضعیت ناشناخته: ${data.status}`)
+          }
+        }
+      }
+    
+      form.addEventListener('submit', async (event) => {
+        /*
+         * مهم:
+         * این باید اولین دستور handler باشد.
+         * هیچ native form submission نباید اتفاق بیفتد.
+         */
+        event.preventDefault()
+        event.stopPropagation()
+    
+        const username = usernameInput.value.trim().replace(/^@+/, '')
+    
+        if (!username) {
+          usernameInput.focus()
+    
+          return
+        }
+    
+        const maxItems = Number(maxItemsInput.value)
+    
+        if (!Number.isInteger(maxItems) || maxItems <= 0 || maxItems > 100) {
+          showError('تعداد محتوا باید بین ۱ تا ۱۰۰ باشد.')
+    
+          return
+        }
+    
+        const confirmation = window.confirm('مطمئن باشید به اینستاگرام دسترسی دارید.\n\n' + 'آیا اتصال برقرار است؟')
+    
+        if (!confirmation) {
+          return
+        }
+    
+        /*
+         * FormData را قبل از disabled کردن inputها می‌سازیم.
+         * input غیرفعال داخل FormData قرار نمی‌گیرد.
+         */
+        const formData = new FormData(form)
+    
+        setLoading()
+    
+        try {
+          const response = await fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin',
+            redirect: 'error'
+          })
+    
+          const data = await readJson(response)
+    
+          if (!response.ok) {
+            showError(data?.message || 'شروع کراول با خطا مواجه شد.')
+    
+            return
+          }
+    
+          /*
+           * معماری جدید باید 202 برگرداند.
+           */
+          if (response.status !== 202) {
+            showError('پاسخ غیرمنتظره از سرور دریافت شد.')
+    
+            return
+          }
+    
+          if (!data || !data.id || !data.status_url) {
+            showError('اطلاعات نشست کراول ناقص است.')
+    
+            return
+          }
+    
+          statusTitle.textContent = 'کراول شروع شد'
+    
+          statusDescription.textContent = `در حال بررسی @${data.username} هستیم.`
+    
+          await pollCrawlStatus(data.status_url)
+        } catch (error) {
+          console.error('Crawl request failed:', error)
+    
+          showError(error instanceof Error ? error.message : 'خطای نامشخص در ارتباط با سرور.')
+        }
+      })
+    })()
   </script>
 {% endblock %}

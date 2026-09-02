@@ -13,10 +13,8 @@
       {% endblock %}
     </title>
 
-    <!-- Favicon -->
     <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon" />
 
-    <!-- Main stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}" />
 
     {% block head %}
@@ -37,11 +35,21 @@
               <span class="brand__subtitle">Instagram Shop Migration</span>
             </span>
           </a>
+
+          <nav class="app-nav" aria-label="منوی اصلی">
+            <a href="{{ url_for('web.index') }}" class="app-nav__link {% if request.endpoint == 'web.index' %}is-active{% endif %}">شروع کراول</a>
+
+            <a href="{{ url_for('web.crawl_list') }}" class="app-nav__link {% if request.endpoint in ['web.crawl_list', 'web.crawl_detail'] %}is-active{% endif %}">نشست‌ها</a>
+          </nav>
         </div>
       </header>
 
       <main class="app-main">
         <div class="container">
+          {% block breadcrumb %}
+
+          {% endblock %}
+
           {% block content %}
 
           {% endblock %}

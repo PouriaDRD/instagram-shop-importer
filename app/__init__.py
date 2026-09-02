@@ -4,15 +4,25 @@ import logging
 import time
 from pathlib import Path
 
-from flask import Flask, Response, g, request
+from flask import (
+    Flask,
+    Response,
+    g,
+    request,
+)
+from flask.typing import ResponseReturnValue
 from werkzeug.exceptions import HTTPException
 
-from app.common.logging import configure_logging
+from app.common.datetime import (
+    format_iran_datetime,
+)
+from app.common.logging import (
+    configure_logging,
+)
 from app.config import Config
 from app.extensions import db
 
 logger = logging.getLogger("app")
-
 http_logger = logging.getLogger("http")
 
 
@@ -35,6 +45,8 @@ def create_app() -> Flask:
 
     db.init_app(app)
 
+    register_template_filters(app)
+
     register_routes(app)
 
     register_http_logging(app)
@@ -47,6 +59,12 @@ def create_app() -> Flask:
         db.create_all()
 
     return app
+
+
+def register_template_filters(
+    app: Flask,
+) -> None:
+    app.jinja_env.filters["iran_datetime"] = format_iran_datetime
 
 
 def register_routes(
@@ -99,7 +117,7 @@ def register_error_handlers(
     @app.errorhandler(Exception)
     def handle_unexpected_error(
         error: Exception,
-    ):
+    ) -> ResponseReturnValue:
         if isinstance(
             error,
             HTTPException,
