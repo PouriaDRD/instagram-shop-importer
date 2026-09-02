@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+
+{% block title %}بررسی نهایی | Selora Importer{% endblock %}
+
+{% block breadcrumb %}
+  <nav class="page-breadcrumb" aria-label="مسیر صفحه">
+    <a href="{{ url_for('web.crawl_list') }}">نشست‌ها</a>
+    <span class="page-breadcrumb__separator">/</span>
+    <a href="{{ url_for('web.import_draft_review', draft_id=draft.id) }}">ویرایش محصولات</a>
+    <span class="page-breadcrumb__separator">/</span>
+    <span class="page-breadcrumb__current">بررسی نهایی</span>
+  </nav>
+{% endblock %}
+
+{% block content %}
+  <nav class="import-flow" aria-label="مراحل آماده‌سازی ایمپورت">
+    <a class="import-flow__step is-complete" href="{{ url_for('web.crawl_detail', session_id=draft.crawl_session_id) }}">
+      <span class="import-flow__number">۱</span>
+      <span class="import-flow__content"><strong>کراول</strong><small>دریافت اطلاعات پیج</small></span>
+    </a>
+    <span class="import-flow__connector is-complete"></span>
+    <a class="import-flow__step is-complete" href="{{ url_for('web.crawl_detail', session_id=draft.crawl_session_id) }}">
+      <span class="import-flow__number">۲</span>
+      <span class="import-flow__content"><strong>انتخاب محتوا</strong><small>پست‌ها و فایل‌ها</small></span>
+    </a>
+    <span class="import-flow__connector is-complete"></span>
+    <a class="import-flow__step is-complete" href="{{ url_for('web.import_draft_review', draft_id=draft.id) }}">
+      <span class="import-flow__number">۳</span>
+      <span class="import-flow__content"><strong>ویرایش محصولات</strong><small>اطلاعات و قیمت</small></span>
+    </a>
+    <span class="import-flow__connector is-complete"></span>
+    <div class="import-flow__step is-current" aria-current="step">
+      <span class="import-flow__number">۴</span>
+      <span class="import-flow__content"><strong>بررسی نهایی</strong><small>کنترل قبل از ارسال</small></span>
+    </div>
+    <span class="import-flow__connector"></span>
+    <div class="import-flow__step is-upcoming">
+      <span class="import-flow__number">۵</span>
+      <span class="import-flow__content"><strong>ارسال به سلورا</strong><small>مرحله بعد</small></span>
+    </div>
+  </nav>
+
+  <section class="final-review-hero">
+    <div>
+      <span class="eyebrow">FINAL REVIEW</span>
+      <h1>بررسی نهایی پیش‌نویس</h1>
+      <p>قبل از ارسال به سلورا، محصولات فعال و اطلاعات اصلی آن‌ها را یک‌بار کنترل کن.</p>
+    </div>
+    <div class="final-review-hero__badge">مرحله ۴ از ۵</div>
+  </section>
+
+  {% set active = namespace(count=0) %}
+  {% for item in draft.items %}
+    {% if item.is_selected %}{% set active.count = active.count + 1 %}{% endif %}
+  {% endfor %}
+
+  <section class="final-review-summary">
+    <div><strong>{{ active.count }}</strong><span>محصول فعال</span></div>
+    <div><strong>{{ draft.items|length - active.count }}</strong><span>محصول حذف‌شده</span></div>
+    <div><strong>{{ draft.created_at|iran_date }}</strong><span>تاریخ پیش‌نویس</span></div>
+  </section>
+
+  <div class="final-review-list">
+    {% for item in draft.items %}
+      {% if item.is_selected %}
+        {% set pd = item.product_data %}
+        <article class="final-review-card">
+          <div class="final-review-card__media">
+            {% set primary = namespace(asset=None) %}
+            {% for selected_asset in item.selected_assets %}
+              {% if selected_asset.is_primary %}{% set primary.asset = selected_asset %}{% endif %}
+            {% endfor %}
+
+            {% if primary.asset and primary.asset.asset.asset_type != 'video' %}
+              <img src="{{ primary.asset.asset.source_url }}" alt="" loading="lazy" />
+            {% elif item.media.thumbnail_url %}
+              <img src="{{ item.media.thumbnail_url }}" alt="" loading="lazy" />
+            {% else %}
+              <div class="product-editor-media__placeholder">تصویر موجود نیست</div>
+            {% endif %}
+          </div>
+
+          <div class="final-review-card__content">
+            <div class="final-review-card__title-row">
+              <div>
+                <span class="final-review-card__index">{{ loop.index }}</span>
+                <h2>{{ pd.product_name if pd and pd.product_name else 'محصول بدون نام' }}</h2>
+              </div>
+              <span class="status-badge status-badge--completed"><span class="status-badge__dot"></span>آماده</span>
+            </div>
+
+            {% if pd and pd.description %}
+              <p class="final-review-card__description">{{ pd.description }}</p>
+            {% endif %}
+
+            <div class="final-review-card__facts">
+              <div><span>قیمت فروش</span><strong>{{ pd.sale_price if pd and pd.sale_price is not none else '-' }} تومان</strong></div>
+              <div><span>قیمت قبل تخفیف</span><strong>{{ pd.list_price if pd and pd.list_price is not none else '-' }} تومان</strong></div>
+              <div><span>موجودی</span><strong>{{ pd.stock if pd else 0 }}</strong></div>
+              <div><span>رنگ‌ها</span><strong>{{ pd.colors|join('، ') if pd and pd.colors else '-' }}</strong></div>
+              <div><span>سایزها</span><strong>{{ pd.sizes|join('، ') if pd and pd.sizes else '-' }}</strong></div>
+              <div><span>فایل‌ها</span><strong>{{ item.selected_assets|length }}</strong></div>
+            </div>
+
+            <a href="{{ item.media.permalink }}" target="_blank" rel="noopener noreferrer" class="crawl-media-card__link">مشاهده محتوای اصلی ↗</a>
+          </div>
+        </article>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="final-review-submitbar">
+    <a class="button button--secondary" href="{{ url_for('web.import_draft_review', draft_id=draft.id) }}">→ برگشت به ویرایش محصولات</a>
+    <div>
+      <strong>مرحله بعد: ارسال به سلورا</strong>
+      <span>در مرحله بعد API و Draft سمت سلورا را وصل می‌کنیم.</span>
+    </div>
+    <button class="button button--primary" type="button" disabled>ارسال به سلورا</button>
+  </div>
+{% endblock %}

@@ -1,0 +1,246 @@
+{% extends 'base.html' %}
+
+{% block title %}ویرایش محصولات | Selora Importer{% endblock %}
+
+{% block breadcrumb %}
+  <nav class="page-breadcrumb" aria-label="مسیر صفحه">
+    <a href="{{ url_for('web.crawl_list') }}">نشست‌ها</a>
+    <span class="page-breadcrumb__separator">/</span>
+    <a href="{{ url_for('web.crawl_detail', session_id=draft.crawl_session_id) }}">انتخاب محتوا</a>
+    <span class="page-breadcrumb__separator">/</span>
+    <span class="page-breadcrumb__current">ویرایش محصولات</span>
+  </nav>
+{% endblock %}
+
+{% block content %}
+  <nav class="import-flow" aria-label="مراحل آماده‌سازی ایمپورت">
+    <a class="import-flow__step is-complete" href="{{ url_for('web.crawl_detail', session_id=draft.crawl_session_id) }}">
+      <span class="import-flow__number">۱</span>
+      <span class="import-flow__content"><strong>کراول</strong><small>دریافت اطلاعات پیج</small></span>
+    </a>
+    <span class="import-flow__connector is-complete"></span>
+    <a class="import-flow__step is-complete" href="{{ url_for('web.crawl_detail', session_id=draft.crawl_session_id) }}">
+      <span class="import-flow__number">۲</span>
+      <span class="import-flow__content"><strong>انتخاب محتوا</strong><small>پست‌ها و فایل‌ها</small></span>
+    </a>
+    <span class="import-flow__connector is-complete"></span>
+    <div class="import-flow__step is-current" aria-current="step">
+      <span class="import-flow__number">۳</span>
+      <span class="import-flow__content"><strong>ویرایش محصولات</strong><small>اطلاعات و قیمت</small></span>
+    </div>
+    <span class="import-flow__connector"></span>
+    <a class="import-flow__step is-upcoming import-flow__step--clickable" href="{{ url_for('web.import_draft_final_review', draft_id=draft.id) }}">
+      <span class="import-flow__number">۴</span>
+      <span class="import-flow__content"><strong>بررسی نهایی</strong><small>کنترل قبل از ارسال</small></span>
+    </a>
+    <span class="import-flow__connector"></span>
+    <div class="import-flow__step is-upcoming">
+      <span class="import-flow__number">۵</span>
+      <span class="import-flow__content"><strong>ارسال به سلورا</strong><small>پس از تأیید نهایی</small></span>
+    </div>
+  </nav>
+
+  <section class="draft-editor-hero">
+    <div>
+      <span class="eyebrow">PRODUCT PREPARATION</span>
+      <h1 class="draft-editor-hero__title">آماده‌سازی محصولات</h1>
+      <p class="draft-editor-hero__description">
+        اطلاعات هر محتوا را به محصول قابل ایمپورت تبدیل کن. تغییرات در Importer ذخیره می‌شوند و هنوز چیزی به سلورا ارسال نمی‌شود.
+      </p>
+    </div>
+    <div class="draft-editor-hero__meta">
+      <div><strong>{{ draft.items|length }}</strong><span>محصول</span></div>
+      <div><strong>{{ draft.created_at|iran_date }}</strong><span>تاریخ ایجاد</span></div>
+      <span class="session-status session-status--pending">Draft</span>
+    </div>
+  </section>
+
+  {% if save_success %}
+    <div class="draft-save-message draft-save-message--success">
+      <strong>تغییرات ذخیره شد.</strong>
+      <span>می‌توانی ویرایش را ادامه بدهی یا به بررسی نهایی بروی.</span>
+    </div>
+  {% endif %}
+
+  {% if save_error %}
+    <div class="draft-save-message draft-save-message--error">
+      <strong>ذخیره انجام نشد.</strong>
+      <span>{{ save_error }}</span>
+    </div>
+  {% endif %}
+
+  {% if draft.items %}
+    <form method="post" action="{{ url_for('web.save_import_draft', draft_id=draft.id) }}" id="draft-editor-form">
+      <div class="draft-editor-toolbar">
+        <div>
+          <strong>ویرایش محصولات</strong>
+          <span>نام، توضیحات، قیمت، موجودی، رنگ، سایز و تصویر اصلی</span>
+        </div>
+        <div class="draft-editor-toolbar__actions">
+          <a class="button button--secondary" href="{{ url_for('web.crawl_detail', session_id=draft.crawl_session_id) }}">برگشت به انتخاب محتوا</a>
+          <button type="submit" class="button button--primary" name="submit_action" value="save">ذخیره تغییرات</button>
+        </div>
+      </div>
+
+      <div class="product-editor-list">
+        {% for item in draft.items %}
+          {% set pd = item.product_data %}
+          <article class="product-editor-card {% if not item.is_selected %}is-disabled{% endif %}" data-product-card="{{ item.id }}">
+            <div class="product-editor-card__head">
+              <div class="product-editor-card__identity">
+                <div class="product-editor-card__index">{{ loop.index }}</div>
+                <div>
+                  <strong>{{ pd.product_name if pd and pd.product_name else 'محصول بدون نام' }}</strong>
+                  <span dir="ltr">{{ item.media.shortcode }}</span>
+                </div>
+              </div>
+
+              <label class="product-enable-toggle">
+                <input type="checkbox" name="selected_item_ids" value="{{ item.id }}" {% if item.is_selected %}checked{% endif %} data-enable-item="{{ item.id }}" />
+                <span class="product-enable-toggle__track"><span></span></span>
+                <span>استفاده در ایمپورت</span>
+              </label>
+            </div>
+
+            <div class="product-editor-card__grid">
+              <aside class="product-editor-media">
+                <div class="product-editor-media__main">
+                  {% set primary = namespace(asset=None) %}
+                  {% for selected_asset in item.selected_assets %}
+                    {% if selected_asset.is_primary %}{% set primary.asset = selected_asset %}{% endif %}
+                  {% endfor %}
+
+                  {% if primary.asset and primary.asset.asset.asset_type != 'video' %}
+                    <img src="{{ primary.asset.asset.source_url }}" alt="" loading="lazy" />
+                  {% elif item.media.thumbnail_url %}
+                    <img src="{{ item.media.thumbnail_url }}" alt="" loading="lazy" />
+                  {% else %}
+                    <div class="product-editor-media__placeholder">تصویر موجود نیست</div>
+                  {% endif %}
+                </div>
+
+                {% if item.selected_assets %}
+                  <div class="product-editor-assets">
+                    <div class="product-editor-assets__header">
+                      <strong>تصویر اصلی</strong>
+                      <span>یک فایل را انتخاب کن</span>
+                    </div>
+                    <div class="product-editor-assets__grid">
+                      {% for selected_asset in item.selected_assets %}
+                        <label class="product-editor-asset {% if selected_asset.is_primary %}is-primary{% endif %}">
+                          <input type="radio" name="primary_asset__{{ item.id }}" value="{{ selected_asset.id }}" {% if selected_asset.is_primary %}checked{% endif %} />
+                          {% if selected_asset.asset.asset_type == 'video' %}
+                            <div class="product-editor-asset__video">▶</div>
+                          {% else %}
+                            <img src="{{ selected_asset.asset.source_url }}" alt="" loading="lazy" />
+                          {% endif %}
+                          <span>اصلی</span>
+                        </label>
+                      {% endfor %}
+                    </div>
+                  </div>
+                {% endif %}
+
+                <a href="{{ item.media.permalink }}" target="_blank" rel="noopener noreferrer" class="crawl-media-card__link">
+                  مشاهده پست اصلی ↗
+                </a>
+              </aside>
+
+              <div class="product-editor-fields">
+                <div class="form-field">
+                  <label class="form-label" for="product-name-{{ item.id }}">نام محصول</label>
+                  <input id="product-name-{{ item.id }}" class="form-input" type="text" maxlength="255" name="product_name__{{ item.id }}" value="{{ pd.product_name if pd else '' }}" placeholder="مثلاً شومیز لینن زنانه" />
+                </div>
+
+                <div class="form-field">
+                  <label class="form-label" for="description-{{ item.id }}">توضیحات محصول</label>
+                  <textarea id="description-{{ item.id }}" class="form-textarea" name="description__{{ item.id }}" rows="6" placeholder="توضیحات محصول...">{{ pd.description if pd else item.media.caption or '' }}</textarea>
+                </div>
+
+                <div class="product-editor-price-grid">
+                  <div class="form-field">
+                    <label class="form-label">قیمت فروش</label>
+                    <div class="price-input">
+                      <input class="form-input" inputmode="numeric" name="sale_price__{{ item.id }}" value="{{ pd.sale_price if pd and pd.sale_price is not none else '' }}" placeholder="0" />
+                      <span>تومان</span>
+                    </div>
+                  </div>
+
+                  <div class="form-field">
+                    <label class="form-label">قیمت قبل تخفیف</label>
+                    <div class="price-input">
+                      <input class="form-input" inputmode="numeric" name="list_price__{{ item.id }}" value="{{ pd.list_price if pd and pd.list_price is not none else '' }}" placeholder="0" />
+                      <span>تومان</span>
+                    </div>
+                  </div>
+
+                  <div class="form-field">
+                    <label class="form-label">موجودی</label>
+                    <input class="form-input" inputmode="numeric" name="stock__{{ item.id }}" value="{{ pd.stock if pd else 0 }}" />
+                  </div>
+                </div>
+
+                <div class="product-editor-option-grid">
+                  <div class="form-field">
+                    <label class="form-label">رنگ‌ها</label>
+                    <input class="form-input" type="text" name="colors__{{ item.id }}" value="{{ pd.colors|join(', ') if pd else '' }}" placeholder="مشکی، سفید، کرم" />
+                    <p class="form-help">رنگ‌ها را با ویرگول جدا کن.</p>
+                  </div>
+
+                  <div class="form-field">
+                    <label class="form-label">سایزها</label>
+                    <input class="form-input" type="text" name="sizes__{{ item.id }}" value="{{ pd.sizes|join(', ') if pd else '' }}" placeholder="S, M, L, XL" />
+                    <p class="form-help">سایزها را با ویرگول جدا کن.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+
+      <div class="draft-editor-submitbar">
+        <a class="button button--secondary" href="{{ url_for('web.crawl_detail', session_id=draft.crawl_session_id) }}">→ برگشت به انتخاب محتوا</a>
+
+        <div class="draft-editor-submitbar__summary">
+          <strong>مرحله ۳ از ۵</strong>
+          <span>تغییرات را ذخیره کن و برای کنترل نهایی ادامه بده.</span>
+        </div>
+
+        <div class="draft-editor-submitbar__actions">
+          <button type="submit" class="button button--secondary" name="submit_action" value="save">ذخیره</button>
+          <button type="submit" class="button button--primary" name="submit_action" value="review">
+            ادامه به بررسی نهایی ←
+          </button>
+        </div>
+      </div>
+    </form>
+  {% else %}
+    <div class="crawl-empty">این پیش‌نویس آیتمی ندارد.</div>
+  {% endif %}
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    document.querySelectorAll('[data-enable-item]').forEach((toggle) => {
+      const sync = () => {
+        const card = document.querySelector(`[data-product-card="${toggle.dataset.enableItem}"]`);
+        card?.classList.toggle('is-disabled', !toggle.checked);
+      };
+
+      toggle.addEventListener('change', sync);
+      sync();
+    });
+
+    document.querySelectorAll('.product-editor-asset input[type="radio"]').forEach((radio) => {
+      radio.addEventListener('change', () => {
+        const group = document.querySelectorAll(`input[name="${radio.name}"]`);
+
+        group.forEach((input) => {
+          input.closest('.product-editor-asset')?.classList.toggle('is-primary', input.checked);
+        });
+      });
+    });
+  </script>
+{% endblock %}

@@ -7,193 +7,204 @@
 {% block breadcrumb %}
   <nav class="page-breadcrumb" aria-label="مسیر صفحه">
     <a href="{{ url_for('web.index') }}">شروع کراول</a>
-
     <span class="page-breadcrumb__separator">/</span>
-
     <a href="{{ url_for('web.crawl_list') }}">نشست‌ها</a>
-
     <span class="page-breadcrumb__separator">/</span>
-
     <span class="page-breadcrumb__current" dir="ltr">@{{ crawl_session.username }}</span>
   </nav>
 {% endblock %}
 
 {% block content %}
-  <section class="crawl-detail-header">
-    <div class="crawl-profile">
-      {% if crawl_session.profile_picture_url %}
-        <img src="{{ crawl_session.profile_picture_url }}" alt="@{{ crawl_session.username }}" class="crawl-profile__avatar" />
-      {% else %}
-        <div class="crawl-profile__avatar-placeholder" aria-hidden="true">{{ crawl_session.username[:1]|upper }}</div>
-      {% endif %}
 
-      <div class="crawl-profile__content">
-        <h1 class="crawl-profile__name">{{ crawl_session.full_name or crawl_session.username }}</h1>
+  <nav class="import-flow" aria-label="مراحل آماده‌سازی ایمپورت">
+    <a class="import-flow__step is-complete" href="{{ url_for('web.crawl_detail', session_id=crawl_session.id) }}">
+      <span class="import-flow__number">۱</span>
+      <span class="import-flow__content"><strong>کراول</strong><small>دریافت اطلاعات پیج</small></span>
+    </a>
+    <span class="import-flow__connector is-complete"></span>
+    <div class="import-flow__step is-current" aria-current="step">
+      <span class="import-flow__number">۲</span>
+      <span class="import-flow__content"><strong>انتخاب محتوا</strong><small>پست‌ها و فایل‌ها</small></span>
+    </div>
+    <span class="import-flow__connector"></span>
+    <div class="import-flow__step is-upcoming">
+      <span class="import-flow__number">۳</span>
+      <span class="import-flow__content"><strong>ویرایش محصولات</strong><small>اطلاعات و قیمت</small></span>
+    </div>
+    <span class="import-flow__connector"></span>
+    <div class="import-flow__step is-upcoming">
+      <span class="import-flow__number">۴</span>
+      <span class="import-flow__content"><strong>بررسی نهایی</strong><small>کنترل قبل از ارسال</small></span>
+    </div>
+    <span class="import-flow__connector"></span>
+    <div class="import-flow__step is-upcoming">
+      <span class="import-flow__number">۵</span>
+      <span class="import-flow__content"><strong>ارسال به سلورا</strong><small>ساخت Draft در سلورا</small></span>
+    </div>
+  </nav>
 
-        <div class="crawl-profile__username" dir="ltr">@{{ crawl_session.username }}</div>
-
-        {% if crawl_session.biography %}
-          <p class="crawl-profile__bio">{{ crawl_session.biography }}</p>
+  <section class="crawl-overview-card">
+    <div class="crawl-overview-card__main">
+      <div class="crawl-profile">
+        {% if crawl_session.profile_picture_url %}
+          <img src="{{ crawl_session.profile_picture_url }}" alt="@{{ crawl_session.username }}" class="crawl-profile__avatar" />
+        {% else %}
+          <div class="crawl-profile__avatar-placeholder" aria-hidden="true">{{ crawl_session.username[:1]|upper }}</div>
         {% endif %}
 
-        <div class="crawl-profile__stats">
-          <span class="crawl-profile__stat">
-            <strong>{{ crawl_session.followers_count or 0 }}</strong>
-            دنبال‌کننده
-          </span>
+        <div class="crawl-profile__content">
+          <div class="crawl-profile__heading">
+            <div>
+              <h1 class="crawl-profile__name">{{ crawl_session.full_name or crawl_session.username }}</h1>
+              <div class="crawl-profile__username" dir="ltr">@{{ crawl_session.username }}</div>
+            </div>
 
-          <span class="crawl-profile__stat">
-            <strong>{{ crawl_session.following_count or 0 }}</strong>
-            دنبال‌شونده
-          </span>
+            {% if crawl_session.status == 'completed' %}
+              <span class="session-status session-status--completed"><span class="session-status__dot"></span>تکمیل‌شده</span>
+            {% elif crawl_session.status == 'running' %}
+              <span class="session-status session-status--running"><span class="session-status__dot session-status__dot--pulse"></span>در حال اجرا</span>
+            {% elif crawl_session.status == 'failed' %}
+              <span class="session-status session-status--failed"><span class="session-status__dot"></span>ناموفق</span>
+            {% else %}
+              <span class="session-status session-status--pending"><span class="session-status__dot"></span>در انتظار</span>
+            {% endif %}
+          </div>
 
-          {% if crawl_session.instagram_media_count is not none %}
-            <span class="crawl-profile__stat">
-              <strong>{{ crawl_session.instagram_media_count }}</strong>
-              محتوای اینستاگرام
-            </span>
+          {% if crawl_session.biography %}
+            <p class="crawl-profile__bio">{{ crawl_session.biography }}</p>
           {% endif %}
 
-          <span class="crawl-profile__stat">
-            <strong>{{ crawl_session.crawled_media_count }}</strong>
-            دریافت‌شده
-          </span>
+          <div class="crawl-profile__stats">
+            <div class="crawl-stat"><span class="crawl-stat__value">{{ crawl_session.followers_count or 0 }}</span><span class="crawl-stat__label">دنبال‌کننده</span></div>
+            <div class="crawl-stat"><span class="crawl-stat__value">{{ crawl_session.following_count or 0 }}</span><span class="crawl-stat__label">دنبال‌شونده</span></div>
+            {% if crawl_session.instagram_media_count is not none %}
+              <div class="crawl-stat"><span class="crawl-stat__value">{{ crawl_session.instagram_media_count }}</span><span class="crawl-stat__label">محتوای اینستاگرام</span></div>
+            {% endif %}
+            <div class="crawl-stat crawl-stat--accent"><span class="crawl-stat__value">{{ crawl_session.crawled_media_count }}</span><span class="crawl-stat__label">دریافت‌شده</span></div>
+          </div>
         </div>
       </div>
     </div>
 
-    <div>
-      {% if crawl_session.status == 'completed' %}
-        <span class="session-status session-status--completed">تکمیل‌شده</span>
-      {% elif crawl_session.status == 'running' %}
-        <span class="session-status session-status--running">در حال اجرا</span>
-      {% elif crawl_session.status == 'failed' %}
-        <span class="session-status session-status--failed">ناموفق</span>
-      {% else %}
-        <span class="session-status session-status--pending">در انتظار</span>
-      {% endif %}
-    </div>
-  </section>
-
-  <section class="detail-time-section">
-    <div class="detail-time-section__header">
+    <div class="crawl-overview-card__timeline-header">
       <div>
-        <h2 class="detail-time-section__title">زمان‌بندی نشست</h2>
-
-        <p class="detail-time-section__description">تمام تاریخ‌ها بر اساس تقویم شمسی و ساعت ایران نمایش داده می‌شوند.</p>
+        <h2 class="crawl-overview-card__timeline-title">زمان‌بندی نشست</h2>
+        <p class="crawl-overview-card__timeline-description">زمان ایجاد، شروع و پایان این کراول بر اساس ساعت ایران</p>
       </div>
     </div>
 
-    <div class="detail-time-grid">
-      <article class="detail-time-card">
-        <div class="detail-time-card__icon">۱</div>
-
-        <div class="detail-time-card__content">
-          <span class="detail-time-card__label">ایجاد نشست</span>
-
-          <strong class="detail-time-card__date">{{ crawl_session.created_at|iran_date }}</strong>
-
-          <span class="detail-time-card__time">
-            ساعت
-            {{ crawl_session.created_at|iran_time }}
-          </span>
-
-          <p class="detail-time-card__help">زمانی که این نشست در Importer ساخته شده است.</p>
-        </div>
-      </article>
-
-      <article class="detail-time-card">
-        <div class="detail-time-card__icon">۲</div>
-
-        <div class="detail-time-card__content">
-          <span class="detail-time-card__label">شروع کراول</span>
-
+    <div class="crawl-overview-card__timeline">
+      <div class="crawl-timeline-step is-complete">
+        <span class="crawl-timeline-step__dot"></span>
+        <div><span class="crawl-timeline-step__label">ایجاد نشست</span><strong>{{ crawl_session.created_at|iran_date }}</strong><small>ساعت {{ crawl_session.created_at|iran_time }}</small></div>
+      </div>
+      <div class="crawl-timeline-connector {% if crawl_session.started_at %}is-complete{% endif %}"></div>
+      <div class="crawl-timeline-step {% if crawl_session.started_at %}is-complete{% elif crawl_session.status == 'running' %}is-current{% endif %}">
+        <span class="crawl-timeline-step__dot"></span>
+        <div>
+          <span class="crawl-timeline-step__label">شروع کراول</span>
           {% if crawl_session.started_at %}
-            <strong class="detail-time-card__date">{{ crawl_session.started_at|iran_date }}</strong>
-
-            <span class="detail-time-card__time">
-              ساعت
-              {{ crawl_session.started_at|iran_time }}
-            </span>
+            <strong>{{ crawl_session.started_at|iran_date }}</strong><small>ساعت {{ crawl_session.started_at|iran_time }}</small>
           {% else %}
-            <strong class="detail-time-card__date detail-time-card__date--empty">هنوز شروع نشده</strong>
+            <strong>هنوز شروع نشده</strong>
           {% endif %}
-
-          <p class="detail-time-card__help">زمانی که دریافت اطلاعات پیج از اینستاگرام واقعاً آغاز شده است.</p>
         </div>
-      </article>
-
-      <article class="detail-time-card">
-        <div class="detail-time-card__icon">۳</div>
-
-        <div class="detail-time-card__content">
-          <span class="detail-time-card__label">پایان کراول</span>
-
+      </div>
+      <div class="crawl-timeline-connector {% if crawl_session.completed_at %}is-complete{% endif %}"></div>
+      <div class="crawl-timeline-step {% if crawl_session.completed_at %}is-complete{% elif crawl_session.status == 'running' %}is-current{% endif %}">
+        <span class="crawl-timeline-step__dot"></span>
+        <div>
+          <span class="crawl-timeline-step__label">پایان کراول</span>
           {% if crawl_session.completed_at %}
-            <strong class="detail-time-card__date">{{ crawl_session.completed_at|iran_date }}</strong>
-
-            <span class="detail-time-card__time">
-              ساعت
-              {{ crawl_session.completed_at|iran_time }}
-            </span>
+            <strong>{{ crawl_session.completed_at|iran_date }}</strong><small>ساعت {{ crawl_session.completed_at|iran_time }}</small>
           {% elif crawl_session.status == 'running' %}
-            <strong class="detail-time-card__date detail-time-card__date--running">در حال اجرا</strong>
+            <strong>در حال اجرا</strong>
           {% else %}
-            <strong class="detail-time-card__date detail-time-card__date--empty">ثبت نشده</strong>
+            <strong>ثبت نشده</strong>
           {% endif %}
-
-          <p class="detail-time-card__help">زمانی که دریافت و ذخیره محتوای این نشست به پایان رسیده است.</p>
         </div>
-      </article>
+      </div>
     </div>
   </section>
 
   {% if crawl_session.status == 'failed' and crawl_session.error_message %}
-    <div class="crawl-error">{{ crawl_session.error_message }}</div>
+    <div class="crawl-error"><div class="crawl-error__icon">!</div><div><strong>کراول با خطا متوقف شد</strong><p>{{ crawl_session.error_message }}</p></div></div>
+  {% endif %}
+
+  {% if draft_error %}
+    <div class="crawl-error"><div class="crawl-error__icon">!</div><div><strong>پیش‌نویس ساخته نشد</strong><p>{{ draft_error }}</p></div></div>
   {% endif %}
 
   <section class="crawl-media-section">
-    <div class="crawl-section-header">
+    <div class="crawl-section-header crawl-section-header--media">
       <div>
-        <h2 class="crawl-section-title">محتوای استخراج‌شده</h2>
-
-        <p class="crawl-section-description">پست‌ها و ریلزهای دریافت‌شده در این نشست</p>
+        <div class="crawl-section-heading-row">
+          <h2 class="crawl-section-title">محتوای استخراج‌شده</h2>
+          <span class="crawl-section-count">{{ crawl_session.media|length }} مورد</span>
+        </div>
+        {% if crawl_session.status == 'completed' %}
+          <p class="crawl-section-description">پست‌ها و فایل‌های مناسب محصول را انتخاب کن. انتخاب‌ها قبل از ارسال به سلورا قابل بازبینی هستند.</p>
+        {% else %}
+          <p class="crawl-section-description">پست‌ها و ریلزهای دریافت‌شده در این نشست</p>
+        {% endif %}
       </div>
-
-      <span class="crawl-section-count">
-        {{ crawl_session.media|length }}
-        مورد
-      </span>
     </div>
 
     {% if crawl_session.media %}
-      <div class="crawl-media-grid">
+      {% if crawl_session.status == 'completed' %}
+        <form method="post" action="{{ url_for('web.create_import_draft', session_id=crawl_session.id) }}" id="draft-form" class="draft-selection-form">
+          <div class="selection-toolbar" id="selection-toolbar">
+            <div class="selection-toolbar__summary">
+              <div class="selection-toolbar__icon">✓</div>
+              <div>
+                <strong><span id="selected-media-count">{{ crawl_session.media|length }}</span> محتوا انتخاب شده</strong>
+                <span>
+                  <span id="selected-asset-count">
+                    {% set ns = namespace(total=0) %}
+                    {% for media in crawl_session.media %}
+                      {% set ns.total = ns.total + (media.assets|length) %}
+                    {% endfor %}
+                    {{ ns.total }}
+                  </span>
+                  فایل در پیش‌نویس قرار می‌گیرد
+                </span>
+              </div>
+            </div>
+            <div class="selection-toolbar__actions">
+              <button type="button" class="button button--secondary button--small" id="select-all-media">انتخاب همه</button>
+              <button type="button" class="button button--ghost button--small" id="clear-all-media">پاک کردن انتخاب‌ها</button>
+            </div>
+          </div>
+      {% endif %}
+
+      <div class="crawl-media-grid crawl-media-grid--selectable">
         {% for media in crawl_session.media %}
-          <article class="crawl-media-card">
+          <article class="crawl-media-card {% if crawl_session.status == 'completed' %}is-selected{% endif %}" data-media-card="{{ media.id }}">
+            {% if crawl_session.status == 'completed' %}
+              <label class="media-select-control" title="انتخاب یا حذف این محتوا">
+                <input class="media-select-control__input" type="checkbox" name="media_ids" value="{{ media.id }}" checked data-media-checkbox="{{ media.id }}" />
+                <span class="media-select-control__box"><span class="media-select-control__check">✓</span></span>
+              </label>
+            {% endif %}
+
             <div class="crawl-media-card__media">
               {% if media.thumbnail_url %}
                 <img src="{{ media.thumbnail_url }}" alt="{{ media.shortcode }}" loading="lazy" />
               {% else %}
-                <div class="crawl-media-card__placeholder">تصویر موجود نیست</div>
+                <div class="crawl-media-card__placeholder"><div class="crawl-media-card__placeholder-icon">◫</div><span>تصویر موجود نیست</span></div>
               {% endif %}
-
+              <div class="crawl-media-card__overlay"></div>
               <span class="crawl-media-card__type">
-                {% if media.media_type == 'reel' %}
-                  Reel
-                {% elif media.media_type == 'carousel' %}
-                  Carousel
-                {% elif media.media_type == 'video' %}
-                  Video
-                {% elif media.media_type == 'image' %}
-                  Image
-                {% else %}
-                  {{ media.media_type }}
-                {% endif %}
+                {% if media.media_type == 'reel' %}Reel{% elif media.media_type == 'carousel' %}Carousel{% elif media.media_type == 'video' %}Video{% elif media.media_type == 'image' %}Image{% else %}{{ media.media_type }}{% endif %}
               </span>
+              {% if media.assets|length > 1 %}<span class="crawl-media-card__asset-count">{{ media.assets|length }} فایل</span>{% endif %}
             </div>
 
             <div class="crawl-media-card__body">
-              <div class="crawl-media-card__shortcode">{{ media.shortcode }}</div>
+              <div class="crawl-media-card__topline">
+                <div class="crawl-media-card__shortcode">{{ media.shortcode }}</div>
+                <a href="{{ media.permalink }}" target="_blank" rel="noopener noreferrer" class="media-external-link" title="مشاهده در اینستاگرام">↗</a>
+              </div>
 
               {% if media.caption %}
                 <p class="crawl-media-card__caption">{{ media.caption }}</p>
@@ -202,53 +213,159 @@
               {% endif %}
 
               <div class="crawl-media-card__meta">
-                <span>
-                  {{ media.assets|length }}
-                  فایل
-                </span>
-
-                {% if media.like_count is not none %}
-                  <span>
-                    {{ media.like_count }}
-                    لایک
-                  </span>
-                {% endif %}
-
-                {% if media.comment_count is not none %}
-                  <span>
-                    {{ media.comment_count }}
-                    کامنت
-                  </span>
-                {% endif %}
-
-                {% if media.view_count is not none %}
-                  <span>
-                    {{ media.view_count }}
-                    بازدید
-                  </span>
-                {% endif %}
+                {% if media.like_count is not none %}<span class="media-meta-pill">♥ {{ media.like_count }}</span>{% endif %}
+                {% if media.comment_count is not none %}<span class="media-meta-pill">◌ {{ media.comment_count }}</span>{% endif %}
+                {% if media.view_count is not none %}<span class="media-meta-pill">◉ {{ media.view_count }}</span>{% endif %}
               </div>
 
               {% if media.published_at %}
                 <div class="media-published-date">
-                  <span class="media-published-date__label">تاریخ انتشار در اینستاگرام</span>
-
+                  <span class="media-published-date__label">انتشار</span>
                   <strong class="media-published-date__value">{{ media.published_at|iran_date }}</strong>
-
-                  <span class="media-published-date__time">
-                    ساعت
-                    {{ media.published_at|iran_time }}
-                  </span>
+                  <span class="media-published-date__time">ساعت {{ media.published_at|iran_time }}</span>
                 </div>
               {% endif %}
 
-              <a href="{{ media.permalink }}" target="_blank" rel="noopener noreferrer" class="crawl-media-card__link">مشاهده در اینستاگرام</a>
+              {% if crawl_session.status == 'completed' and media.assets %}
+                <div class="draft-assets" data-assets-group="{{ media.id }}">
+                  <div class="draft-assets__header">
+                    <strong>فایل‌های این محتوا</strong>
+                    <span data-selected-assets-label="{{ media.id }}">{{ media.assets|length }} از {{ media.assets|length }}</span>
+                  </div>
+
+                  <div class="draft-assets__grid">
+                    {% for asset in media.assets %}
+                      <label class="draft-asset is-selected" data-asset-card>
+                        <input class="draft-asset__input" type="checkbox" name="asset_ids" value="{{ asset.id }}" checked data-parent-media="{{ media.id }}" />
+                        <span class="draft-asset__check">✓</span>
+                        {% if asset.asset_type == 'video' %}
+                          <div class="draft-asset__preview draft-asset__preview--video"><span class="draft-asset__play">▶</span><span>Video</span></div>
+                        {% else %}
+                          <img src="{{ asset.source_url }}" alt="" loading="lazy" />
+                        {% endif %}
+                        <span class="draft-asset__type">
+                          {% if asset.asset_type == 'thumbnail' %}Thumbnail{% elif asset.asset_type == 'video' %}Video{% else %}Image{% endif %}
+                        </span>
+                      </label>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% endif %}
             </div>
           </article>
         {% endfor %}
       </div>
+
+      {% if crawl_session.status == 'completed' %}
+        <div class="draft-submit-bar">
+          <div class="draft-submit-bar__content">
+            <div class="draft-submit-bar__icon">→</div>
+            <div>
+              <strong>آماده‌ی ساخت پیش‌نویس</strong>
+              <p>در مرحله بعد اطلاعات انتخاب‌شده را مرور می‌کنی؛ هنوز چیزی به سلورا ارسال نمی‌شود.</p>
+            </div>
+          </div>
+          <button type="submit" class="button button--primary draft-submit-button" id="create-draft-button">
+            <span>ساخت پیش‌نویس</span><span class="draft-submit-button__arrow">←</span>
+          </button>
+        </div>
+        </form>
+      {% endif %}
     {% else %}
-      <div class="crawl-empty">محتوایی برای این نشست دریافت نشده است.</div>
+      <div class="crawl-empty crawl-empty--media">
+        <div class="crawl-empty__icon">◫</div>
+        <strong>محتوایی دریافت نشده</strong>
+        <span>برای این نشست هیچ پست یا ریلزی ذخیره نشده است.</span>
+      </div>
     {% endif %}
   </section>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  {% if crawl_session.status == 'completed' and crawl_session.media %}
+    <script>
+      (() => {
+        const mediaCheckboxes = Array.from(document.querySelectorAll('[data-media-checkbox]'));
+        const assetCheckboxes = Array.from(document.querySelectorAll('[data-parent-media]'));
+        const selectedMediaCount = document.getElementById('selected-media-count');
+        const selectedAssetCount = document.getElementById('selected-asset-count');
+        const selectAllButton = document.getElementById('select-all-media');
+        const clearAllButton = document.getElementById('clear-all-media');
+        const submitButton = document.getElementById('create-draft-button');
+
+        const updateAssetGroup = (mediaId) => {
+          const assets = assetCheckboxes.filter((checkbox) => checkbox.dataset.parentMedia === mediaId);
+          const selected = assets.filter((checkbox) => checkbox.checked && !checkbox.disabled).length;
+          const label = document.querySelector(`[data-selected-assets-label="${mediaId}"]`);
+
+          if (label) label.textContent = `${selected} از ${assets.length}`;
+
+          assets.forEach((checkbox) => {
+            const card = checkbox.closest('[data-asset-card]');
+            if (!card) return;
+            card.classList.toggle('is-selected', checkbox.checked && !checkbox.disabled);
+            card.classList.toggle('is-disabled', checkbox.disabled);
+          });
+        };
+
+        const updateSummary = () => {
+          const selectedMedia = mediaCheckboxes.filter((checkbox) => checkbox.checked).length;
+          const selectedAssets = assetCheckboxes.filter((checkbox) => checkbox.checked && !checkbox.disabled).length;
+
+          if (selectedMediaCount) selectedMediaCount.textContent = String(selectedMedia);
+          if (selectedAssetCount) selectedAssetCount.textContent = String(selectedAssets);
+          if (submitButton) submitButton.disabled = selectedMedia === 0;
+
+          mediaCheckboxes.forEach((checkbox) => {
+            const card = document.querySelector(`[data-media-card="${checkbox.value}"]`);
+            if (card) {
+              card.classList.toggle('is-selected', checkbox.checked);
+              card.classList.toggle('is-unselected', !checkbox.checked);
+            }
+            updateAssetGroup(checkbox.value);
+          });
+        };
+
+        mediaCheckboxes.forEach((mediaCheckbox) => {
+          mediaCheckbox.addEventListener('change', () => {
+            const mediaId = mediaCheckbox.dataset.mediaCheckbox;
+
+            assetCheckboxes
+              .filter((assetCheckbox) => assetCheckbox.dataset.parentMedia === mediaId)
+              .forEach((assetCheckbox) => {
+                assetCheckbox.disabled = !mediaCheckbox.checked;
+                if (mediaCheckbox.checked) assetCheckbox.checked = true;
+              });
+
+            updateSummary();
+          });
+        });
+
+        assetCheckboxes.forEach((assetCheckbox) => {
+          assetCheckbox.addEventListener('change', updateSummary);
+        });
+
+        selectAllButton?.addEventListener('click', () => {
+          mediaCheckboxes.forEach((checkbox) => { checkbox.checked = true; });
+          assetCheckboxes.forEach((checkbox) => {
+            checkbox.disabled = false;
+            checkbox.checked = true;
+          });
+          updateSummary();
+        });
+
+        clearAllButton?.addEventListener('click', () => {
+          mediaCheckboxes.forEach((checkbox) => { checkbox.checked = false; });
+          assetCheckboxes.forEach((checkbox) => {
+            checkbox.checked = false;
+            checkbox.disabled = true;
+          });
+          updateSummary();
+        });
+
+        updateSummary();
+      })();
+    </script>
+  {% endif %}
 {% endblock %}
