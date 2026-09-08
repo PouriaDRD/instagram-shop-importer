@@ -1,6 +1,325 @@
 {% extends 'base.html' %}
 
-{% block title %}بررسی نهایی | Selora Importer{% endblock %}
+{% block title %}
+  بررسی نهایی | Selora Importer
+{% endblock %}
+
+{% block head %}
+  {{ super() }}
+  <style>
+    .validation-summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin: 18px 0 22px;
+    }
+    
+    .validation-summary__item {
+      padding: 16px 18px;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      background: #fff;
+    }
+    
+    .validation-summary__item strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 22px;
+      color: #111827;
+    }
+    
+    .validation-summary__item span {
+      font-size: 12px;
+      color: #6b7280;
+    }
+    
+    .validation-summary__item--ready {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+    
+    .validation-summary__item--warning {
+      border-color: #fde68a;
+      background: #fffbeb;
+    }
+    
+    .validation-summary__item--error {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+    
+    .validation-panel {
+      margin-bottom: 22px;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+      border-radius: 18px;
+      background: #fff;
+    }
+    
+    .validation-panel__head {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 18px;
+      border-bottom: 1px solid #e5e7eb;
+      background: #fafafa;
+    }
+    
+    .validation-panel__head strong {
+      display: block;
+      margin-bottom: 3px;
+      color: #111827;
+      font-size: 14px;
+    }
+    
+    .validation-panel__head span {
+      color: #6b7280;
+      font-size: 12px;
+    }
+    
+    .validation-list {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .validation-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+      padding: 16px 18px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    
+    .validation-item:last-child {
+      border-bottom: 0;
+    }
+    
+    .validation-item__title {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    .validation-item__title strong {
+      color: #111827;
+      font-size: 13px;
+    }
+    
+    .validation-item__shortcode {
+      color: #9ca3af;
+      font-size: 11px;
+      direction: ltr;
+    }
+    
+    .validation-issues {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+    
+    .validation-chip {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      padding: 6px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    
+    .validation-chip--error {
+      background: #fef2f2;
+      color: #b91c1c;
+    }
+    
+    .validation-chip--warning {
+      background: #fffbeb;
+      color: #92400e;
+    }
+    
+    .validation-chip--ready {
+      background: #f0fdf4;
+      color: #166534;
+    }
+    
+    .send-gate {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 20px;
+      padding: 16px 18px;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      background: #fff;
+    }
+    
+    .send-gate--blocked {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+    
+    .send-gate__content strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #111827;
+      font-size: 14px;
+    }
+    
+    .send-gate__content span {
+      color: #6b7280;
+      font-size: 12px;
+    }
+    
+    .send-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: none;
+      place-items: center;
+      padding: 24px;
+      background: rgba(17, 24, 39, 0.58);
+      backdrop-filter: blur(4px);
+    }
+    
+    .send-overlay.is-visible {
+      display: grid;
+    }
+    
+    .send-overlay__card {
+      width: min(440px, 100%);
+      padding: 28px;
+      border-radius: 22px;
+      background: #fff;
+      box-shadow: 0 28px 90px rgba(17, 24, 39, 0.28);
+      text-align: center;
+    }
+    
+    .send-overlay__spinner {
+      width: 44px;
+      height: 44px;
+      margin: 0 auto 18px;
+      border: 4px solid #e5e7eb;
+      border-top-color: #4f46e5;
+      border-radius: 50%;
+      animation: send-spin 0.8s linear infinite;
+    }
+    
+    .send-overlay__card strong {
+      display: block;
+      margin-bottom: 8px;
+      color: #111827;
+      font-size: 18px;
+    }
+    
+    .send-overlay__card p {
+      margin: 0;
+      color: #6b7280;
+      font-size: 13px;
+      line-height: 1.9;
+    }
+    
+    .send-overlay__meta {
+      display: flex;
+      gap: 18px;
+      justify-content: center;
+      margin-top: 18px;
+      color: #4b5563;
+      font-size: 12px;
+    }
+    
+    @keyframes send-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    
+
+
+    .remote-workspace-alert[hidden],
+    #remote-workspace-retry[hidden] {
+      display: none !important;
+    }
+
+    .remote-workspace-alert {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      justify-content: space-between;
+      margin: 16px 0;
+      padding: 14px 16px;
+      border: 1px solid #fecaca;
+      border-radius: 14px;
+      background: #fff7f7;
+    }
+
+    .remote-workspace-alert__content {
+      min-width: 0;
+    }
+
+    .remote-workspace-alert__content strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #991b1b;
+      font-size: 13px;
+    }
+
+    .remote-workspace-alert__content span {
+      color: #7f1d1d;
+      font-size: 12px;
+      line-height: 1.8;
+    }
+
+    .remote-workspace-alert__actions {
+      display: flex;
+      flex: 0 0 auto;
+      gap: 8px;
+    }
+
+    .remote-workspace-alert.is-warning {
+      border-color: #fde68a;
+      background: #fffbeb;
+    }
+
+    .remote-workspace-alert.is-warning .remote-workspace-alert__content strong,
+    .remote-workspace-alert.is-warning .remote-workspace-alert__content span {
+      color: #92400e;
+    }
+
+    @media (max-width: 720px) {
+      .remote-workspace-alert {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .remote-workspace-alert__actions {
+        width: 100%;
+      }
+
+      .remote-workspace-alert__actions .button {
+        flex: 1;
+      }
+    }
+
+    @media (max-width: 800px) {
+      .validation-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    
+      .validation-item {
+        grid-template-columns: 1fr;
+      }
+    
+      .send-gate {
+        align-items: stretch;
+        flex-direction: column;
+      }
+    }
+  </style>
+{% endblock %}
 
 {% block breadcrumb %}
   <nav class="page-breadcrumb" aria-label="مسیر صفحه">
@@ -19,102 +338,479 @@
       <span class="import-flow__content"><strong>کراول</strong><small>دریافت اطلاعات پیج</small></span>
     </a>
     <span class="import-flow__connector is-complete"></span>
+
     <a class="import-flow__step is-complete" href="{{ url_for('web.crawl_detail', session_id=draft.crawl_session_id) }}">
       <span class="import-flow__number">۲</span>
-      <span class="import-flow__content"><strong>انتخاب محتوا</strong><small>پست‌ها و فایل‌ها</small></span>
+      <span class="import-flow__content"><strong>انتخاب محتوا</strong><small>پست‌های محصول</small></span>
     </a>
     <span class="import-flow__connector is-complete"></span>
+
     <a class="import-flow__step is-complete" href="{{ url_for('web.import_draft_review', draft_id=draft.id) }}">
       <span class="import-flow__number">۳</span>
       <span class="import-flow__content"><strong>ویرایش محصولات</strong><small>اطلاعات و قیمت</small></span>
     </a>
     <span class="import-flow__connector is-complete"></span>
+
     <div class="import-flow__step is-current" aria-current="step">
       <span class="import-flow__number">۴</span>
-      <span class="import-flow__content"><strong>بررسی نهایی</strong><small>کنترل قبل از ارسال</small></span>
+      <span class="import-flow__content"><strong>بررسی نهایی</strong><small>Validation قبل از ارسال</small></span>
     </div>
     <span class="import-flow__connector"></span>
+
     <div class="import-flow__step is-upcoming">
       <span class="import-flow__number">۵</span>
-      <span class="import-flow__content"><strong>ارسال به سلورا</strong><small>مرحله بعد</small></span>
+      <span class="import-flow__content"><strong>ارسال به سلورا</strong><small>ثبت در staging</small></span>
     </div>
   </nav>
 
   <section class="final-review-hero">
     <div>
-      <span class="eyebrow">FINAL REVIEW</span>
-      <h1>بررسی نهایی پیش‌نویس</h1>
-      <p>قبل از ارسال به سلورا، محصولات فعال و اطلاعات اصلی آن‌ها را یک‌بار کنترل کن.</p>
+      <span class="eyebrow">PREFLIGHT CHECK</span>
+      <h1>بررسی قبل از ارسال</h1>
+      <p>خطاهای مسدودکننده را برطرف کن. هشدارها مانع ارسال نیستند، اما بهتر است بررسی شوند.</p>
     </div>
     <div class="final-review-hero__badge">مرحله ۴ از ۵</div>
   </section>
 
-  {% set active = namespace(count=0) %}
-  {% for item in draft.items %}
-    {% if item.is_selected %}{% set active.count = active.count + 1 %}{% endif %}
-  {% endfor %}
+  <section class="validation-summary">
+    <div class="validation-summary__item">
+      <strong>{{ validation.selected_count }}</strong>
+      <span>محصول فعال</span>
+    </div>
 
-  <section class="final-review-summary">
-    <div><strong>{{ active.count }}</strong><span>محصول فعال</span></div>
-    <div><strong>{{ draft.items|length - active.count }}</strong><span>محصول حذف‌شده</span></div>
-    <div><strong>{{ draft.created_at|iran_date }}</strong><span>تاریخ پیش‌نویس</span></div>
+    <div class="validation-summary__item validation-summary__item--ready">
+      <strong>{{ validation.ready_item_count }}</strong>
+      <span>کاملاً آماده</span>
+    </div>
+
+    <div class="validation-summary__item validation-summary__item--warning">
+      <strong>{{ validation.warning_item_count }}</strong>
+      <span>دارای هشدار</span>
+    </div>
+
+    <div class="validation-summary__item validation-summary__item--error">
+      <strong>{{ validation.blocked_item_count }}</strong>
+      <span>مسدودشده</span>
+    </div>
   </section>
 
-  <div class="final-review-list">
-    {% for item in draft.items %}
-      {% if item.is_selected %}
-        {% set pd = item.product_data %}
-        <article class="final-review-card">
-          <div class="final-review-card__media">
-            {% set primary = namespace(asset=None) %}
-            {% for selected_asset in item.selected_assets %}
-              {% if selected_asset.is_primary %}{% set primary.asset = selected_asset %}{% endif %}
-            {% endfor %}
 
-            {% if primary.asset and primary.asset.asset.asset_type != 'video' %}
-              <img src="{{ primary.asset.asset.source_url }}" alt="" loading="lazy" />
-            {% elif item.media.thumbnail_url %}
-              <img src="{{ item.media.thumbnail_url }}" alt="" loading="lazy" />
-            {% else %}
-              <div class="product-editor-media__placeholder">تصویر موجود نیست</div>
-            {% endif %}
-          </div>
 
-          <div class="final-review-card__content">
-            <div class="final-review-card__title-row">
-              <div>
-                <span class="final-review-card__index">{{ loop.index }}</span>
-                <h2>{{ pd.product_name if pd and pd.product_name else 'محصول بدون نام' }}</h2>
-              </div>
-              <span class="status-badge status-badge--completed"><span class="status-badge__dot"></span>آماده</span>
-            </div>
-
-            {% if pd and pd.description %}
-              <p class="final-review-card__description">{{ pd.description }}</p>
-            {% endif %}
-
-            <div class="final-review-card__facts">
-              <div><span>قیمت فروش</span><strong>{{ pd.sale_price if pd and pd.sale_price is not none else '-' }} تومان</strong></div>
-              <div><span>قیمت قبل تخفیف</span><strong>{{ pd.list_price if pd and pd.list_price is not none else '-' }} تومان</strong></div>
-              <div><span>موجودی</span><strong>{{ pd.stock if pd else 0 }}</strong></div>
-              <div><span>رنگ‌ها</span><strong>{{ pd.colors|join('، ') if pd and pd.colors else '-' }}</strong></div>
-              <div><span>سایزها</span><strong>{{ pd.sizes|join('، ') if pd and pd.sizes else '-' }}</strong></div>
-              <div><span>فایل‌ها</span><strong>{{ item.selected_assets|length }}</strong></div>
-            </div>
-
-            <a href="{{ item.media.permalink }}" target="_blank" rel="noopener noreferrer" class="crawl-media-card__link">مشاهده محتوای اصلی ↗</a>
-          </div>
-        </article>
-      {% endif %}
-    {% endfor %}
-  </div>
-
-  <div class="final-review-submitbar">
-    <a class="button button--secondary" href="{{ url_for('web.import_draft_review', draft_id=draft.id) }}">→ برگشت به ویرایش محصولات</a>
-    <div>
-      <strong>مرحله بعد: ارسال به سلورا</strong>
-      <span>در مرحله بعد API و Draft سمت سلورا را وصل می‌کنیم.</span>
+  <div
+    class="remote-workspace-alert {% if remote_error and not remote_read_only %}is-warning{% endif %}"
+    id="remote-workspace-alert"
+    {% if not remote_error and not remote_read_only %}hidden{% endif %}
+  >
+    <div class="remote-workspace-alert__content">
+      <strong id="remote-workspace-alert-title">
+        {% if remote_read_only %}
+          ویرایش این Workspace متوقف شده است
+        {% else %}
+          وضعیت Workspace در سلورا
+        {% endif %}
+      </strong>
+      <span id="remote-workspace-alert-message">
+        {% if remote_error %}
+          {{ remote_error }}
+        {% elif remote_read_only_reason %}
+          {{ remote_read_only_reason }}
+        {% else %}
+          برای جلوگیری از تعارض، وضعیت Workspace باید دوباره با سلورا همگام شود.
+        {% endif %}
+      </span>
     </div>
-    <button class="button button--primary" type="button" disabled>ارسال به سلورا</button>
+
+    <div class="remote-workspace-alert__actions">
+      <button
+        type="button"
+        class="button button--secondary button--small"
+        id="remote-workspace-reload"
+      >
+        تازه‌سازی صفحه
+      </button>
+
+      <button
+        type="button"
+        class="button button--primary button--small"
+        id="remote-workspace-retry"
+        {% if not remote_retry_allowed %}hidden{% endif %}
+      >
+        تلاش مجدد برای گرفتن قفل
+      </button>
+    </div>
   </div>
+
+  {% if send_result %}
+    <div class="draft-save-message draft-save-message--success">
+      <strong>
+        {% if send_result.replayed %}
+          این پیش‌نویس قبلاً به سلورا ارسال شده بود.
+        {% else %}
+          پیش‌نویس با موفقیت به سلورا ارسال شد.
+        {% endif %}
+      </strong>
+      <span>
+        Session سلورا:
+        <span dir="ltr">{{ send_result.session_id }}</span>
+        · {{ send_result.draft_count }} محصول · Request ID:
+        <span dir="ltr">{{ send_result.request_id }}</span>
+      </span>
+    </div>
+  {% endif %}
+
+  {% if send_error %}
+    <div class="draft-save-message draft-save-message--error">
+      <strong>ارسال انجام نشد.</strong>
+      <span>{{ send_error }}</span>
+      {% if send_request_id %}
+        <span>Request ID: <span dir="ltr">{{ send_request_id }}</span></span>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <section class="validation-panel">
+    <div class="validation-panel__head">
+      <div>
+        <strong>وضعیت محصولات</strong>
+        <span>برای اصلاح، مستقیماً به همان محصول برگرد.</span>
+      </div>
+
+      <a class="button button--secondary button--small" href="{{ url_for('web.import_draft_review', draft_id=draft.id) }}">ویرایش همه محصولات</a>
+    </div>
+
+    <div class="validation-list">
+      {% for item_validation in validation.items %}
+        <article class="validation-item">
+          <div>
+            <div class="validation-item__title">
+              <strong>{{ item_validation.product_name }}</strong>
+              <span class="validation-item__shortcode">{{ item_validation.shortcode }}</span>
+            </div>
+
+            <div class="validation-issues">
+              {% if item_validation.issues %}
+                {% for issue in item_validation.issues %}
+                  <span class="validation-chip validation-chip--{{ issue.severity.value }}">
+                    {% if issue.severity.value == 'error' %}
+                      ✕
+                    {% else %}
+                      ⚠
+                    {% endif %}
+                    {{ issue.message }}
+                  </span>
+                {% endfor %}
+              {% else %}
+                <span class="validation-chip validation-chip--ready">✓ آماده ارسال</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <a class="button button--secondary button--small" href="{{ url_for('web.import_draft_review', draft_id=draft.id, item=item_validation.item_id) }}">ویرایش این محصول</a>
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="send-gate {% if not validation.can_send or remote_read_only %}send-gate--blocked{% endif %}">
+    <div class="send-gate__content">
+      {% if remote_read_only %}
+        <strong>ارسال از این اپراتور مجاز نیست</strong>
+        <span>Workspace در حالت فقط‌خواندنی است یا قفل آن در اختیار اپراتور دیگری است.</span>
+      {% elif validation.can_send %}
+        <strong>آماده ارسال به سلورا</strong>
+        <span>
+          {{ validation.selected_count }} محصول انتخاب شده است.{% if validation.warning_count %}
+            {{ validation.warning_count }} هشدار وجود دارد، اما مانع ارسال نیست.
+          {% else %}
+            خطا یا هشدار فعالی وجود ندارد.
+          {% endif %}
+        </span>
+      {% else %}
+        <strong>ارسال فعلاً مسدود است</strong>
+        <span>{{ validation.error_count }} خطای مسدودکننده را اصلاح کن و دوباره به این صفحه برگرد.</span>
+      {% endif %}
+    </div>
+
+    <div>
+      {% if validation.can_send and not remote_read_only %}
+        <form method="post" action="{{ url_for('web.send_import_draft_to_selora', draft_id=draft.id) }}" id="send-to-selora-form" data-product-count="{{ validation.selected_count }}">
+          <button class="button button--primary" type="submit" id="send-to-selora-button" data-remote-write-action>ارسال {{ validation.selected_count }} محصول به سلورا</button>
+        </form>
+      {% else %}
+        <button class="button button--primary" type="button" disabled>ارسال به سلورا</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="send-overlay" id="send-overlay" aria-hidden="true">
+    <div class="send-overlay__card" role="status" aria-live="polite">
+      <div class="send-overlay__spinner" aria-hidden="true"></div>
+      <strong>در حال ارسال به سلورا...</strong>
+      <p>اطلاعات محصولات در حال ثبت در staging سلورا هستند. لطفاً این صفحه را نبند.</p>
+      <div class="send-overlay__meta">
+        <span><strong id="send-overlay-product-count" style="display:inline;font-size:12px;"></strong> محصول</span>
+        <span>ارسال امن و idempotent</span>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+
+  <script>
+    ;(() => {
+      'use strict'
+    
+      const remoteWorkspaceAlert = document.getElementById(
+            'remote-workspace-alert'
+          )
+          const remoteWorkspaceAlertTitle = document.getElementById(
+            'remote-workspace-alert-title'
+          )
+          const remoteWorkspaceAlertMessage = document.getElementById(
+            'remote-workspace-alert-message'
+          )
+          const remoteWorkspaceRetry = document.getElementById(
+            'remote-workspace-retry'
+          )
+          const remoteWorkspaceReload = document.getElementById(
+            'remote-workspace-reload'
+          )
+
+          const retryLockUrl = {{ url_for(
+            'web.retry_import_draft_lock',
+            draft_id=draft.id
+          )|tojson }}
+
+          const heartbeatUrl = {{ url_for(
+            'web.heartbeat_import_draft_lock',
+            draft_id=draft.id
+          )|tojson }}
+
+          const heartbeatMs = Math.max(
+            Number({{ heartbeat_seconds|default(120) }}) * 1000,
+            30000
+          )
+
+          let remoteEditingDisabled = {{ 'true' if remote_read_only else 'false' }}
+          let heartbeatTimerId = null
+      
+          const disableRemoteEditing = ({
+            message,
+            retryAllowed = true,
+            title = 'ویرایش این Workspace متوقف شده است'
+          }) => {
+            remoteEditingDisabled = true
+      
+            const editorFieldset = document.querySelector(
+              '[data-remote-edit-fieldset]'
+            )
+
+            if (editorFieldset) {
+              editorFieldset.disabled = true
+            }
+
+            document.querySelectorAll(
+              '[data-remote-write-action]'
+            ).forEach((element) => {
+              element.disabled = true
+            })
+
+            if (remoteWorkspaceAlert) {
+              remoteWorkspaceAlert.hidden = false
+            }
+
+            if (remoteWorkspaceAlertTitle) {
+              remoteWorkspaceAlertTitle.textContent = title
+            }
+
+            if (remoteWorkspaceAlertMessage) {
+              remoteWorkspaceAlertMessage.textContent = (
+                message
+                || 'قفل ویرایش این Workspace دیگر معتبر نیست.'
+              )
+            }
+
+            if (remoteWorkspaceRetry) {
+              remoteWorkspaceRetry.hidden = !retryAllowed
+              remoteWorkspaceRetry.disabled = false
+              remoteWorkspaceRetry.textContent = 'تلاش مجدد برای گرفتن قفل'
+            }
+
+            if (heartbeatTimerId !== null) {
+              window.clearInterval(
+                heartbeatTimerId
+              )
+              heartbeatTimerId = null
+            }
+          }
+
+          const readRemoteJson = async (response) => {
+            try {
+              return await response.json()
+            } catch {
+              return null
+            }
+          }
+
+          const heartbeat = async () => {
+            if (remoteEditingDisabled) {
+              return
+            }
+
+            try {
+              const response = await fetch(
+                heartbeatUrl,
+                {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  cache: 'no-store'
+                }
+              )
+
+              const data = await readRemoteJson(
+                response
+              )
+
+              if (!response.ok) {
+                disableRemoteEditing({
+                  message: (
+                    data?.message
+                    || 'ارتباط امن با Workspace سلورا از دست رفت.'
+                  ),
+                  retryAllowed: (
+                    data?.retry_allowed
+                    ?? true
+                  )
+                })
+              }
+            } catch (error) {
+              console.error(
+                'Remote workspace heartbeat failed:',
+                error
+              )
+
+              disableRemoteEditing({
+                message: (
+                  'ارتباط با سلورا قطع شد. برای جلوگیری از تعارض، '
+                  + 'ویرایش موقتاً متوقف شد.'
+                ),
+                retryAllowed: true
+              })
+            }
+          }
+
+          const startHeartbeat = () => {
+            if (
+              remoteEditingDisabled
+              || heartbeatTimerId !== null
+            ) {
+              return
+            }
+
+            heartbeatTimerId = window.setInterval(
+              () => {
+                void heartbeat()
+              },
+              heartbeatMs
+            )
+          }
+
+          remoteWorkspaceReload?.addEventListener(
+            'click',
+            () => {
+              window.location.reload()
+            }
+          )
+
+          remoteWorkspaceRetry?.addEventListener(
+            'click',
+            async () => {
+              remoteWorkspaceRetry.disabled = true
+              remoteWorkspaceRetry.textContent = 'در حال تلاش...'
+
+              try {
+                const response = await fetch(
+                  retryLockUrl,
+                  {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    cache: 'no-store'
+                  }
+                )
+
+                const data = await readRemoteJson(
+                  response
+                )
+
+                if (!response.ok) {
+                  if (remoteWorkspaceAlertMessage) {
+                    remoteWorkspaceAlertMessage.textContent = (
+                      data?.message
+                      || 'قفل ویرایش هنوز در دسترس نیست.'
+                    )
+                  }
+
+                  remoteWorkspaceRetry.hidden = !(
+                    data?.retry_allowed
+                    ?? true
+                  )
+                  return
+                }
+
+                window.location.reload()
+              } catch (error) {
+                console.error(
+                  'Remote workspace lock retry failed:',
+                  error
+                )
+
+                if (remoteWorkspaceAlertMessage) {
+                  remoteWorkspaceAlertMessage.textContent = (
+                    'ارتباط با سلورا برقرار نشد. دوباره تلاش کن.'
+                  )
+                }
+              } finally {
+                if (!remoteWorkspaceRetry.hidden) {
+                  remoteWorkspaceRetry.disabled = false
+                  remoteWorkspaceRetry.textContent = 'تلاش مجدد برای گرفتن قفل'
+                }
+              }
+            }
+          )
+
+          startHeartbeat()
+
+      const form = document.getElementById('send-to-selora-form')
+      const button = document.getElementById('send-to-selora-button')
+      const overlay = document.getElementById('send-overlay')
+      const productCount = document.getElementById('send-overlay-product-count')
+    
+      if (!form || !button || !overlay) {
+        return
+      }
+    
+      let submitted = false
+    
+      form.addEventListener('submit', (event) => {
+        if (submitted) {
+          event.preventDefault()
+          return
+        }
+    
+        submitted = true
+    
+        button.disabled = true
+        button.textContent = 'در حال ارسال...'
+    
+        if (productCount) {
+          productCount.textContent = form.dataset.productCount || '0'
+        }
+    
+        overlay.classList.add('is-visible')
+        overlay.setAttribute('aria-hidden', 'false')
+      })
+    })()
+  </script>
 {% endblock %}

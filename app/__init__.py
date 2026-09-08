@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -23,7 +24,7 @@ from app.common.logging import (
     configure_logging,
 )
 from app.config import Config
-from app.extensions import db
+from app.extensions import db, migrate
 
 logger = logging.getLogger("app")
 http_logger = logging.getLogger("http")
@@ -47,6 +48,7 @@ def create_app() -> Flask:
     app.config.from_object(Config)
 
     db.init_app(app)
+    migrate.init_app(app, db)
 
     register_template_helpers(app)
 
@@ -59,7 +61,13 @@ def create_app() -> Flask:
     with app.app_context():
         from app import models  # noqa: F401
 
-        db.create_all()
+        # Transitional compatibility:
+        # existing tests/dev flows still auto-create the schema by default.
+        # Migration commands set INSTAGRAM_IMPORTER_SKIP_CREATE_ALL=1 so
+        # Alembic remains the schema authority while generating/applying
+        # migrations.
+        if os.getenv("INSTAGRAM_IMPORTER_SKIP_CREATE_ALL", "").strip() != "1":
+            db.create_all()
 
     return app
 

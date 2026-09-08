@@ -1,11 +1,17 @@
-from app.repositories.crawl_session_repository import (
-    CrawlSessionRepository,
+from app.repositories.instagram_source_repository import (
+    InstagramSourceRepository,
 )
-from app.repositories.import_draft_repository import (
-    ImportDraftRepository,
+from app.repositories.import_workspace_repository import (
+    ImportWorkspaceRepository,
 )
 
+# Temporary compatibility aliases.
+CrawlSessionRepository = InstagramSourceRepository
+ImportDraftRepository = ImportWorkspaceRepository
+
 __all__ = [
+    "InstagramSourceRepository",
+    "ImportWorkspaceRepository",
     "CrawlSessionRepository",
     "ImportDraftRepository",
 ]

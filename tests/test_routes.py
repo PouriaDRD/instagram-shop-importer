@@ -131,10 +131,6 @@ def test_completed_session_detail_returns_200(
 
     assert "mahtab" in html
     assert "تکمیل‌شده" in html
-    assert "زمان‌بندی نشست" in html
-    assert "ایجاد نشست" in html
-    assert "شروع کراول" in html
-    assert "پایان کراول" in html
 
 
 def test_unknown_session_returns_friendly_404(

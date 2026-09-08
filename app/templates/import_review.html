@@ -2,6 +2,447 @@
 
 {% block title %}ویرایش محصولات | Selora Importer{% endblock %}
 
+{% block head %}
+  {{ super() }}
+  <style>
+    .product-workspace {
+      display: grid;
+      grid-template-columns: 310px minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .product-workspace__sidebar {
+      position: sticky;
+      top: 18px;
+      overflow: hidden;
+      max-height: calc(100vh - 36px);
+      border: 1px solid #e5e7eb;
+      border-radius: 18px;
+      background: #fff;
+    }
+
+    .product-workspace__sidebar-head {
+      padding: 18px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .product-workspace__sidebar-head strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #111827;
+      font-size: 14px;
+    }
+
+    .product-workspace__sidebar-head span {
+      color: #6b7280;
+      font-size: 12px;
+    }
+
+    .product-workspace__list {
+      overflow-y: auto;
+      max-height: calc(100vh - 150px);
+      padding: 8px;
+    }
+
+    .product-nav-item {
+      display: flex;
+      width: 100%;
+      gap: 11px;
+      align-items: center;
+      padding: 11px 12px;
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      text-align: right;
+      transition: 150ms ease;
+    }
+
+    .product-nav-item:hover {
+      background: #f9fafb;
+    }
+
+    .product-nav-item.is-active {
+      background: #eef2ff;
+    }
+
+    .product-nav-item.is-disabled {
+      opacity: 0.52;
+    }
+
+    .product-nav-item__thumb {
+      display: grid;
+      width: 48px;
+      height: 48px;
+      flex: 0 0 48px;
+      overflow: hidden;
+      place-items: center;
+      border-radius: 10px;
+      background: #f3f4f6;
+      color: #9ca3af;
+      font-size: 11px;
+    }
+
+    .product-nav-item__thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .product-nav-item__content {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .product-nav-item__title {
+      display: block;
+      overflow: hidden;
+      margin-bottom: 4px;
+      color: #111827;
+      font-size: 12px;
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .product-nav-item__meta {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      color: #9ca3af;
+      font-size: 10px;
+    }
+
+    .product-nav-item__status {
+      display: inline-flex;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+
+    .product-nav-item.is-disabled .product-nav-item__status {
+      background: #9ca3af;
+    }
+
+    .product-editor-panel {
+      display: none;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+      border-radius: 18px;
+      background: #fff;
+    }
+
+    .product-editor-panel.is-active {
+      display: block;
+    }
+
+    .product-editor-panel__head {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 20px;
+      border-bottom: 1px solid #e5e7eb;
+      background: #fafafa;
+    }
+
+    .product-editor-panel__identity {
+      min-width: 0;
+    }
+
+    .product-editor-panel__identity strong {
+      display: block;
+      overflow: hidden;
+      margin-bottom: 3px;
+      color: #111827;
+      font-size: 15px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .product-editor-panel__identity span {
+      color: #9ca3af;
+      font-size: 11px;
+    }
+
+    .product-editor-panel__body {
+      display: grid;
+      grid-template-columns: minmax(230px, 300px) minmax(0, 1fr);
+      gap: 22px;
+      padding: 20px;
+    }
+
+    .product-editor-visual {
+      min-width: 0;
+    }
+
+    .product-editor-visual__main {
+      overflow: hidden;
+      aspect-ratio: 1 / 1;
+      margin-bottom: 14px;
+      border-radius: 16px;
+      background: #f3f4f6;
+    }
+
+    .product-editor-visual__main img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .product-editor-visual__placeholder {
+      display: grid;
+      width: 100%;
+      height: 100%;
+      place-items: center;
+      color: #9ca3af;
+      font-size: 12px;
+    }
+
+    .product-editor-assets {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .product-editor-asset {
+      position: relative;
+      overflow: hidden;
+      aspect-ratio: 1 / 1;
+      border: 2px solid transparent;
+      border-radius: 10px;
+      background: #f3f4f6;
+      cursor: pointer;
+    }
+
+    .product-editor-asset.is-primary {
+      border-color: #4f46e5;
+    }
+
+    .product-editor-asset input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .product-editor-asset img,
+    .product-editor-asset__video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .product-editor-asset__video {
+      display: grid;
+      place-items: center;
+      background: #111827;
+      color: #fff;
+      font-size: 11px;
+    }
+
+    .product-editor-asset span {
+      position: absolute;
+      right: 5px;
+      bottom: 5px;
+      display: none;
+      padding: 3px 5px;
+      border-radius: 999px;
+      background: #4f46e5;
+      color: #fff;
+      font-size: 8px;
+      font-weight: 800;
+    }
+
+    .product-editor-asset.is-primary span {
+      display: inline-flex;
+    }
+
+    .product-editor-fields {
+      min-width: 0;
+    }
+
+    .product-editor-fields__grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .product-editor-fields__grid--3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .product-editor-navigation {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-top: 1px solid #e5e7eb;
+      background: #fafafa;
+    }
+
+    .product-editor-navigation__position {
+      color: #6b7280;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .product-editor-navigation__actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .draft-editor-stickybar {
+      position: sticky;
+      bottom: 0;
+      z-index: 20;
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 20px;
+      padding: 14px 16px;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 -6px 20px rgba(17, 24, 39, 0.06);
+      backdrop-filter: blur(10px);
+    }
+
+    .draft-editor-stickybar__state strong {
+      display: block;
+      margin-bottom: 3px;
+      color: #111827;
+      font-size: 13px;
+    }
+
+    .draft-editor-stickybar__state span {
+      color: #6b7280;
+      font-size: 11px;
+    }
+
+    .draft-editor-stickybar__actions {
+      display: flex;
+      gap: 8px;
+    }
+
+
+
+    .remote-workspace-alert[hidden],
+    #remote-workspace-retry[hidden] {
+      display: none !important;
+    }
+
+    .remote-workspace-alert {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      justify-content: space-between;
+      margin: 16px 0;
+      padding: 14px 16px;
+      border: 1px solid #fecaca;
+      border-radius: 14px;
+      background: #fff7f7;
+    }
+
+    .remote-workspace-alert__content {
+      min-width: 0;
+    }
+
+    .remote-workspace-alert__content strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #991b1b;
+      font-size: 13px;
+    }
+
+    .remote-workspace-alert__content span {
+      color: #7f1d1d;
+      font-size: 12px;
+      line-height: 1.8;
+    }
+
+    .remote-workspace-alert__actions {
+      display: flex;
+      flex: 0 0 auto;
+      gap: 8px;
+    }
+
+    .remote-workspace-alert.is-warning {
+      border-color: #fde68a;
+      background: #fffbeb;
+    }
+
+    .remote-workspace-alert.is-warning .remote-workspace-alert__content strong,
+    .remote-workspace-alert.is-warning .remote-workspace-alert__content span {
+      color: #92400e;
+    }
+
+    @media (max-width: 720px) {
+      .remote-workspace-alert {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .remote-workspace-alert__actions {
+        width: 100%;
+      }
+
+      .remote-workspace-alert__actions .button {
+        flex: 1;
+      }
+    }
+
+    @media (max-width: 1000px) {
+      .product-workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .product-workspace__sidebar {
+        position: static;
+        max-height: none;
+      }
+
+      .product-workspace__list {
+        display: flex;
+        overflow-x: auto;
+        max-height: none;
+      }
+
+      .product-nav-item {
+        min-width: 210px;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .product-editor-panel__body {
+        grid-template-columns: 1fr;
+      }
+
+      .product-editor-fields__grid,
+      .product-editor-fields__grid--3 {
+        grid-template-columns: 1fr;
+      }
+
+      .draft-editor-stickybar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .draft-editor-stickybar__actions {
+        width: 100%;
+      }
+
+      .draft-editor-stickybar__actions .button {
+        flex: 1;
+      }
+    }
+  </style>
+{% endblock %}
+
 {% block breadcrumb %}
   <nav class="page-breadcrumb" aria-label="مسیر صفحه">
     <a href="{{ url_for('web.crawl_list') }}">نشست‌ها</a>
@@ -19,24 +460,28 @@
       <span class="import-flow__content"><strong>کراول</strong><small>دریافت اطلاعات پیج</small></span>
     </a>
     <span class="import-flow__connector is-complete"></span>
+
     <a class="import-flow__step is-complete" href="{{ url_for('web.crawl_detail', session_id=draft.crawl_session_id) }}">
       <span class="import-flow__number">۲</span>
-      <span class="import-flow__content"><strong>انتخاب محتوا</strong><small>پست‌ها و فایل‌ها</small></span>
+      <span class="import-flow__content"><strong>انتخاب محتوا</strong><small>پست‌های محصول</small></span>
     </a>
     <span class="import-flow__connector is-complete"></span>
+
     <div class="import-flow__step is-current" aria-current="step">
       <span class="import-flow__number">۳</span>
       <span class="import-flow__content"><strong>ویرایش محصولات</strong><small>اطلاعات و قیمت</small></span>
     </div>
     <span class="import-flow__connector"></span>
-    <a class="import-flow__step is-upcoming import-flow__step--clickable" href="{{ url_for('web.import_draft_final_review', draft_id=draft.id) }}">
+
+    <div class="import-flow__step is-upcoming">
       <span class="import-flow__number">۴</span>
       <span class="import-flow__content"><strong>بررسی نهایی</strong><small>کنترل قبل از ارسال</small></span>
-    </a>
+    </div>
     <span class="import-flow__connector"></span>
+
     <div class="import-flow__step is-upcoming">
       <span class="import-flow__number">۵</span>
-      <span class="import-flow__content"><strong>ارسال به سلورا</strong><small>پس از تأیید نهایی</small></span>
+      <span class="import-flow__content"><strong>ارسال به سلورا</strong><small>پس از تأیید</small></span>
     </div>
   </nav>
 
@@ -45,15 +490,62 @@
       <span class="eyebrow">PRODUCT PREPARATION</span>
       <h1 class="draft-editor-hero__title">آماده‌سازی محصولات</h1>
       <p class="draft-editor-hero__description">
-        اطلاعات هر محتوا را به محصول قابل ایمپورت تبدیل کن. تغییرات در Importer ذخیره می‌شوند و هنوز چیزی به سلورا ارسال نمی‌شود.
+        هر بار یک محصول را ویرایش کن. از ستون کنار صفحه بین محصولات جابه‌جا شو؛ همه تغییرات در همین فرم نگه داشته می‌شوند.
       </p>
     </div>
+
     <div class="draft-editor-hero__meta">
-      <div><strong>{{ draft.items|length }}</strong><span>محصول</span></div>
+      <div><strong>{{ draft.items|length }}</strong><span>آیتم Draft</span></div>
       <div><strong>{{ draft.created_at|iran_date }}</strong><span>تاریخ ایجاد</span></div>
       <span class="session-status session-status--pending">Draft</span>
     </div>
   </section>
+
+
+
+  <div
+    class="remote-workspace-alert {% if remote_error and not remote_read_only %}is-warning{% endif %}"
+    id="remote-workspace-alert"
+    {% if not remote_error and not remote_read_only %}hidden{% endif %}
+  >
+    <div class="remote-workspace-alert__content">
+      <strong id="remote-workspace-alert-title">
+        {% if remote_read_only %}
+          ویرایش این Workspace متوقف شده است
+        {% else %}
+          وضعیت Workspace در سلورا
+        {% endif %}
+      </strong>
+      <span id="remote-workspace-alert-message">
+        {% if remote_error %}
+          {{ remote_error }}
+        {% elif remote_read_only_reason %}
+          {{ remote_read_only_reason }}
+        {% else %}
+          برای جلوگیری از تعارض، وضعیت Workspace باید دوباره با سلورا همگام شود.
+        {% endif %}
+      </span>
+    </div>
+
+    <div class="remote-workspace-alert__actions">
+      <button
+        type="button"
+        class="button button--secondary button--small"
+        id="remote-workspace-reload"
+      >
+        تازه‌سازی صفحه
+      </button>
+
+      <button
+        type="button"
+        class="button button--primary button--small"
+        id="remote-workspace-retry"
+        {% if not remote_retry_allowed %}hidden{% endif %}
+      >
+        تلاش مجدد برای گرفتن قفل
+      </button>
+    </div>
+  </div>
 
   {% if save_success %}
     <div class="draft-save-message draft-save-message--success">
@@ -70,147 +562,313 @@
   {% endif %}
 
   {% if draft.items %}
-    <form method="post" action="{{ url_for('web.save_import_draft', draft_id=draft.id) }}" id="draft-editor-form">
-      <div class="draft-editor-toolbar">
-        <div>
-          <strong>ویرایش محصولات</strong>
-          <span>نام، توضیحات، قیمت، موجودی، رنگ، سایز و تصویر اصلی</span>
-        </div>
-        <div class="draft-editor-toolbar__actions">
-          <a class="button button--secondary" href="{{ url_for('web.crawl_detail', session_id=draft.crawl_session_id) }}">برگشت به انتخاب محتوا</a>
-          <button type="submit" class="button button--primary" name="submit_action" value="save">ذخیره تغییرات</button>
-        </div>
-      </div>
+    <form
+      method="post"
+      action="{{ url_for('web.save_import_draft', draft_id=draft.id) }}"
+      id="draft-editor-form"
+    >
+      <fieldset
+        data-remote-edit-fieldset
+        {% if remote_read_only %}disabled{% endif %}
+        style="border:0;padding:0;margin:0;min-width:0;"
+      >
+      <div class="product-workspace">
+        <aside class="product-workspace__sidebar">
+          <div class="product-workspace__sidebar-head">
+            <strong>محصولات این Draft</strong>
+            <span>برای ویرایش، یک محصول را انتخاب کن.</span>
+          </div>
 
-      <div class="product-editor-list">
-        {% for item in draft.items %}
-          {% set pd = item.product_data %}
-          <article class="product-editor-card {% if not item.is_selected %}is-disabled{% endif %}" data-product-card="{{ item.id }}">
-            <div class="product-editor-card__head">
-              <div class="product-editor-card__identity">
-                <div class="product-editor-card__index">{{ loop.index }}</div>
-                <div>
-                  <strong>{{ pd.product_name if pd and pd.product_name else 'محصول بدون نام' }}</strong>
-                  <span dir="ltr">{{ item.media.shortcode }}</span>
-                </div>
-              </div>
+          <div class="product-workspace__list">
+            {% for item in draft.items %}
+              {% set pd = item.product_data %}
+              {% set primary = namespace(asset=None) %}
 
-              <label class="product-enable-toggle">
-                <input type="checkbox" name="selected_item_ids" value="{{ item.id }}" {% if item.is_selected %}checked{% endif %} data-enable-item="{{ item.id }}" />
-                <span class="product-enable-toggle__track"><span></span></span>
-                <span>استفاده در ایمپورت</span>
-              </label>
-            </div>
+              {% for selected_asset in item.selected_assets %}
+                {% if selected_asset.is_primary %}
+                  {% set primary.asset = selected_asset %}
+                {% endif %}
+              {% endfor %}
 
-            <div class="product-editor-card__grid">
-              <aside class="product-editor-media">
-                <div class="product-editor-media__main">
-                  {% set primary = namespace(asset=None) %}
-                  {% for selected_asset in item.selected_assets %}
-                    {% if selected_asset.is_primary %}{% set primary.asset = selected_asset %}{% endif %}
-                  {% endfor %}
-
+              <button
+                type="button"
+                class="product-nav-item {% if loop.first %}is-active{% endif %} {% if not item.is_selected %}is-disabled{% endif %}"
+                data-product-nav="{{ item.id }}"
+                data-product-index="{{ loop.index0 }}"
+              >
+                <span class="product-nav-item__thumb">
                   {% if primary.asset and primary.asset.asset.asset_type != 'video' %}
                     <img src="{{ primary.asset.asset.source_url }}" alt="" loading="lazy" />
                   {% elif item.media.thumbnail_url %}
                     <img src="{{ item.media.thumbnail_url }}" alt="" loading="lazy" />
                   {% else %}
-                    <div class="product-editor-media__placeholder">تصویر موجود نیست</div>
+                    —
                   {% endif %}
+                </span>
+
+                <span class="product-nav-item__content">
+                  <span class="product-nav-item__title" data-nav-title="{{ item.id }}">
+                    {{ pd.product_name if pd and pd.product_name else 'محصول بدون نام' }}
+                  </span>
+
+                  <span class="product-nav-item__meta">
+                    <span class="product-nav-item__status"></span>
+                    <span dir="ltr">{{ item.media.shortcode }}</span>
+                  </span>
+                </span>
+              </button>
+            {% endfor %}
+          </div>
+        </aside>
+
+        <section>
+          {% for item in draft.items %}
+            {% set pd = item.product_data %}
+
+            <article
+              class="product-editor-panel {% if loop.first %}is-active{% endif %}"
+              data-product-panel="{{ item.id }}"
+              data-product-index="{{ loop.index0 }}"
+              data-autosave-url="{{ url_for('web.autosave_import_draft_item', draft_id=draft.id, item_id=item.id) }}"
+            >
+              <div class="product-editor-panel__head">
+                <div class="product-editor-panel__identity">
+                  <strong data-panel-title="{{ item.id }}">
+                    {{ pd.product_name if pd and pd.product_name else 'محصول بدون نام' }}
+                  </strong>
+                  <span dir="ltr">{{ item.media.shortcode }}</span>
                 </div>
 
-                {% if item.selected_assets %}
-                  <div class="product-editor-assets">
-                    <div class="product-editor-assets__header">
-                      <strong>تصویر اصلی</strong>
-                      <span>یک فایل را انتخاب کن</span>
-                    </div>
-                    <div class="product-editor-assets__grid">
+                <label class="product-enable-toggle">
+                  <input
+                    type="checkbox"
+                    name="selected_item_ids"
+                    value="{{ item.id }}"
+                    {% if item.is_selected %}checked{% endif %}
+                    data-enable-item="{{ item.id }}"
+                  />
+                  <span class="product-enable-toggle__track"><span></span></span>
+                  <span>استفاده در ایمپورت</span>
+                </label>
+              </div>
+
+              <div class="product-editor-panel__body">
+                <aside class="product-editor-visual">
+                  <div class="product-editor-visual__main" data-main-preview="{{ item.id }}">
+                    {% set primary = namespace(asset=None) %}
+
+                    {% for selected_asset in item.selected_assets %}
+                      {% if selected_asset.is_primary %}
+                        {% set primary.asset = selected_asset %}
+                      {% endif %}
+                    {% endfor %}
+
+                    {% if primary.asset and primary.asset.asset.asset_type != 'video' %}
+                      <img src="{{ primary.asset.asset.source_url }}" alt="" loading="lazy" />
+                    {% elif item.media.thumbnail_url %}
+                      <img src="{{ item.media.thumbnail_url }}" alt="" loading="lazy" />
+                    {% else %}
+                      <div class="product-editor-visual__placeholder">تصویر موجود نیست</div>
+                    {% endif %}
+                  </div>
+
+                  {% if item.selected_assets %}
+                    <div class="product-editor-assets">
                       {% for selected_asset in item.selected_assets %}
                         <label class="product-editor-asset {% if selected_asset.is_primary %}is-primary{% endif %}">
-                          <input type="radio" name="primary_asset__{{ item.id }}" value="{{ selected_asset.id }}" {% if selected_asset.is_primary %}checked{% endif %} />
+                          <input
+                            type="radio"
+                            name="primary_asset__{{ item.id }}"
+                            value="{{ selected_asset.id }}"
+                            {% if selected_asset.is_primary %}checked{% endif %}
+                            data-primary-asset="{{ item.id }}"
+                            data-preview-url="{% if selected_asset.asset.asset_type != 'video' %}{{ selected_asset.asset.source_url }}{% endif %}"
+                          />
+
                           {% if selected_asset.asset.asset_type == 'video' %}
                             <div class="product-editor-asset__video">▶</div>
                           {% else %}
                             <img src="{{ selected_asset.asset.source_url }}" alt="" loading="lazy" />
                           {% endif %}
+
                           <span>اصلی</span>
                         </label>
                       {% endfor %}
                     </div>
+                  {% endif %}
+
+                  <div style="margin-top: 12px;">
+                    <a
+                      href="{{ item.media.permalink }}"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="crawl-media-card__link"
+                    >
+                      مشاهده پست اصلی ↗
+                    </a>
                   </div>
-                {% endif %}
+                </aside>
 
-                <a href="{{ item.media.permalink }}" target="_blank" rel="noopener noreferrer" class="crawl-media-card__link">
-                  مشاهده پست اصلی ↗
-                </a>
-              </aside>
-
-              <div class="product-editor-fields">
-                <div class="form-field">
-                  <label class="form-label" for="product-name-{{ item.id }}">نام محصول</label>
-                  <input id="product-name-{{ item.id }}" class="form-input" type="text" maxlength="255" name="product_name__{{ item.id }}" value="{{ pd.product_name if pd else '' }}" placeholder="مثلاً شومیز لینن زنانه" />
-                </div>
-
-                <div class="form-field">
-                  <label class="form-label" for="description-{{ item.id }}">توضیحات محصول</label>
-                  <textarea id="description-{{ item.id }}" class="form-textarea" name="description__{{ item.id }}" rows="6" placeholder="توضیحات محصول...">{{ pd.description if pd else item.media.caption or '' }}</textarea>
-                </div>
-
-                <div class="product-editor-price-grid">
+                <div class="product-editor-fields">
                   <div class="form-field">
-                    <label class="form-label">قیمت فروش</label>
-                    <div class="price-input">
-                      <input class="form-input" inputmode="numeric" name="sale_price__{{ item.id }}" value="{{ pd.sale_price if pd and pd.sale_price is not none else '' }}" placeholder="0" />
-                      <span>تومان</span>
+                    <label class="form-label" for="product-name-{{ item.id }}">نام محصول</label>
+                    <input
+                      id="product-name-{{ item.id }}"
+                      class="form-input"
+                      type="text"
+                      maxlength="255"
+                      name="product_name__{{ item.id }}"
+                      value="{{ pd.product_name if pd else '' }}"
+                      placeholder="مثلاً شومیز لینن زنانه"
+                      data-product-name="{{ item.id }}"
+                    />
+                  </div>
+
+                  <div class="form-field">
+                    <label class="form-label" for="description-{{ item.id }}">توضیحات محصول</label>
+                    <textarea
+                      id="description-{{ item.id }}"
+                      class="form-textarea"
+                      name="description__{{ item.id }}"
+                      rows="7"
+                      placeholder="توضیحات محصول..."
+                    >{{ pd.description if pd else item.media.caption or '' }}</textarea>
+                  </div>
+
+                  <div class="product-editor-fields__grid product-editor-fields__grid--3">
+                    <div class="form-field">
+                      <label class="form-label">قیمت فروش</label>
+                      <div class="price-input">
+                        <input
+                          class="form-input"
+                          inputmode="numeric"
+                          name="sale_price__{{ item.id }}"
+                          value="{{ pd.sale_price if pd and pd.sale_price is not none else '' }}"
+                          placeholder="بدون قیمت"
+                        />
+                        <span>تومان</span>
+                      </div>
+                    </div>
+
+                    <div class="form-field">
+                      <label class="form-label">قیمت قبل تخفیف</label>
+                      <div class="price-input">
+                        <input
+                          class="form-input"
+                          inputmode="numeric"
+                          name="list_price__{{ item.id }}"
+                          value="{{ pd.list_price if pd and pd.list_price is not none else '' }}"
+                          placeholder="بدون قیمت"
+                        />
+                        <span>تومان</span>
+                      </div>
+                    </div>
+
+                    <div class="form-field">
+                      <label class="form-label">موجودی</label>
+                      <input
+                        class="form-input"
+                        inputmode="numeric"
+                        name="stock__{{ item.id }}"
+                        value="{{ pd.stock if pd else 0 }}"
+                      />
                     </div>
                   </div>
 
-                  <div class="form-field">
-                    <label class="form-label">قیمت قبل تخفیف</label>
-                    <div class="price-input">
-                      <input class="form-input" inputmode="numeric" name="list_price__{{ item.id }}" value="{{ pd.list_price if pd and pd.list_price is not none else '' }}" placeholder="0" />
-                      <span>تومان</span>
+                  <div class="product-editor-fields__grid">
+                    <div class="form-field">
+                      <label class="form-label">رنگ‌ها</label>
+                      <input
+                        class="form-input"
+                        type="text"
+                        name="colors__{{ item.id }}"
+                        value="{{ pd.colors|join(', ') if pd else '' }}"
+                        placeholder="مشکی، سفید، کرم"
+                      />
+                      <p class="form-help">مقادیر را با ویرگول جدا کن.</p>
                     </div>
-                  </div>
 
-                  <div class="form-field">
-                    <label class="form-label">موجودی</label>
-                    <input class="form-input" inputmode="numeric" name="stock__{{ item.id }}" value="{{ pd.stock if pd else 0 }}" />
-                  </div>
-                </div>
-
-                <div class="product-editor-option-grid">
-                  <div class="form-field">
-                    <label class="form-label">رنگ‌ها</label>
-                    <input class="form-input" type="text" name="colors__{{ item.id }}" value="{{ pd.colors|join(', ') if pd else '' }}" placeholder="مشکی، سفید، کرم" />
-                    <p class="form-help">رنگ‌ها را با ویرگول جدا کن.</p>
-                  </div>
-
-                  <div class="form-field">
-                    <label class="form-label">سایزها</label>
-                    <input class="form-input" type="text" name="sizes__{{ item.id }}" value="{{ pd.sizes|join(', ') if pd else '' }}" placeholder="S, M, L, XL" />
-                    <p class="form-help">سایزها را با ویرگول جدا کن.</p>
+                    <div class="form-field">
+                      <label class="form-label">سایزها</label>
+                      <input
+                        class="form-input"
+                        type="text"
+                        name="sizes__{{ item.id }}"
+                        value="{{ pd.sizes|join(', ') if pd else '' }}"
+                        placeholder="S, M, L, XL"
+                      />
+                      <p class="form-help">مقادیر را با ویرگول جدا کن.</p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </article>
-        {% endfor %}
+
+              <div class="product-editor-navigation">
+                <span class="product-editor-navigation__position">
+                  محصول {{ loop.index }} از {{ draft.items|length }}
+                </span>
+
+                <div class="product-editor-navigation__actions">
+                  <button
+                    type="button"
+                    class="button button--secondary button--small"
+                    data-prev-product
+                    {% if loop.first %}disabled{% endif %}
+                  >
+                    → قبلی
+                  </button>
+
+                  <button
+                    type="button"
+                    class="button button--primary button--small"
+                    data-next-product
+                    {% if loop.last %}disabled{% endif %}
+                  >
+                    بعدی ←
+                  </button>
+                </div>
+              </div>
+            </article>
+          {% endfor %}
+        </section>
       </div>
 
-      <div class="draft-editor-submitbar">
-        <a class="button button--secondary" href="{{ url_for('web.crawl_detail', session_id=draft.crawl_session_id) }}">→ برگشت به انتخاب محتوا</a>
+      </fieldset>
 
-        <div class="draft-editor-submitbar__summary">
-          <strong>مرحله ۳ از ۵</strong>
-          <span>تغییرات را ذخیره کن و برای کنترل نهایی ادامه بده.</span>
+      <div class="draft-editor-stickybar">
+        <div class="draft-editor-stickybar__state">
+          <strong id="draft-change-state">همه تغییرات ذخیره شده‌اند</strong>
+          <span id="draft-change-detail">ذخیره خودکار فعال است.</span>
         </div>
 
-        <div class="draft-editor-submitbar__actions">
-          <button type="submit" class="button button--secondary" name="submit_action" value="save">ذخیره</button>
-          <button type="submit" class="button button--primary" name="submit_action" value="review">
-            ادامه به بررسی نهایی ←
+        <div class="draft-editor-stickybar__actions">
+          <a
+            class="button button--secondary"
+            href="{{ url_for('web.crawl_detail', session_id=draft.crawl_session_id) }}"
+          >
+            برگشت به انتخاب محتوا
+          </a>
+
+          <button
+            type="submit"
+            class="button button--secondary"
+            data-remote-write-action
+            {% if remote_read_only %}disabled{% endif %}
+            name="submit_action"
+            value="save"
+          >
+            ذخیره تغییرات
+          </button>
+
+          <button
+            type="submit"
+            class="button button--primary"
+            data-remote-write-action
+            {% if remote_read_only %}disabled{% endif %}
+            name="submit_action"
+            value="review"
+          >
+            ذخیره و بررسی نهایی ←
           </button>
         </div>
       </div>
@@ -222,25 +880,740 @@
 
 {% block scripts %}
   {{ super() }}
+
   <script>
-    document.querySelectorAll('[data-enable-item]').forEach((toggle) => {
-      const sync = () => {
-        const card = document.querySelector(`[data-product-card="${toggle.dataset.enableItem}"]`);
-        card?.classList.toggle('is-disabled', !toggle.checked);
-      };
+    ;(() => {
+      'use strict'
 
-      toggle.addEventListener('change', sync);
-      sync();
-    });
+      const AUTOSAVE_DELAY_MS = 700
 
-    document.querySelectorAll('.product-editor-asset input[type="radio"]').forEach((radio) => {
-      radio.addEventListener('change', () => {
-        const group = document.querySelectorAll(`input[name="${radio.name}"]`);
+      const remoteWorkspaceAlert = document.getElementById(
+            'remote-workspace-alert'
+          )
+          const remoteWorkspaceAlertTitle = document.getElementById(
+            'remote-workspace-alert-title'
+          )
+          const remoteWorkspaceAlertMessage = document.getElementById(
+            'remote-workspace-alert-message'
+          )
+          const remoteWorkspaceRetry = document.getElementById(
+            'remote-workspace-retry'
+          )
+          const remoteWorkspaceReload = document.getElementById(
+            'remote-workspace-reload'
+          )
 
-        group.forEach((input) => {
-          input.closest('.product-editor-asset')?.classList.toggle('is-primary', input.checked);
-        });
-      });
-    });
+          const retryLockUrl = {{ url_for(
+            'web.retry_import_draft_lock',
+            draft_id=draft.id
+          )|tojson }}
+
+          const heartbeatUrl = {{ url_for(
+            'web.heartbeat_import_draft_lock',
+            draft_id=draft.id
+          )|tojson }}
+
+          const heartbeatMs = Math.max(
+            Number({{ heartbeat_seconds|default(120) }}) * 1000,
+            30000
+          )
+
+          let remoteEditingDisabled = {{ 'true' if remote_read_only else 'false' }}
+          let heartbeatTimerId = null
+      
+          const disableRemoteEditing = ({
+            message,
+            retryAllowed = true,
+            title = 'ویرایش این Workspace متوقف شده است'
+          }) => {
+            remoteEditingDisabled = true
+      
+            const editorFieldset = document.querySelector(
+              '[data-remote-edit-fieldset]'
+            )
+
+            if (editorFieldset) {
+              editorFieldset.disabled = true
+            }
+
+            document.querySelectorAll(
+              '[data-remote-write-action]'
+            ).forEach((element) => {
+              element.disabled = true
+            })
+
+            if (remoteWorkspaceAlert) {
+              remoteWorkspaceAlert.hidden = false
+            }
+
+            if (remoteWorkspaceAlertTitle) {
+              remoteWorkspaceAlertTitle.textContent = title
+            }
+
+            if (remoteWorkspaceAlertMessage) {
+              remoteWorkspaceAlertMessage.textContent = (
+                message
+                || 'قفل ویرایش این Workspace دیگر معتبر نیست.'
+              )
+            }
+
+            if (remoteWorkspaceRetry) {
+              remoteWorkspaceRetry.hidden = !retryAllowed
+              remoteWorkspaceRetry.disabled = false
+              remoteWorkspaceRetry.textContent = 'تلاش مجدد برای گرفتن قفل'
+            }
+
+            if (heartbeatTimerId !== null) {
+              window.clearInterval(
+                heartbeatTimerId
+              )
+              heartbeatTimerId = null
+            }
+          }
+
+          const readRemoteJson = async (response) => {
+            try {
+              return await response.json()
+            } catch {
+              return null
+            }
+          }
+
+          const heartbeat = async () => {
+            if (remoteEditingDisabled) {
+              return
+            }
+
+            try {
+              const response = await fetch(
+                heartbeatUrl,
+                {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  cache: 'no-store'
+                }
+              )
+
+              const data = await readRemoteJson(
+                response
+              )
+
+              if (!response.ok) {
+                disableRemoteEditing({
+                  message: (
+                    data?.message
+                    || 'ارتباط امن با Workspace سلورا از دست رفت.'
+                  ),
+                  retryAllowed: (
+                    data?.retry_allowed
+                    ?? true
+                  )
+                })
+              }
+            } catch (error) {
+              console.error(
+                'Remote workspace heartbeat failed:',
+                error
+              )
+
+              disableRemoteEditing({
+                message: (
+                  'ارتباط با سلورا قطع شد. برای جلوگیری از تعارض، '
+                  + 'ویرایش موقتاً متوقف شد.'
+                ),
+                retryAllowed: true
+              })
+            }
+          }
+
+          const startHeartbeat = () => {
+            if (
+              remoteEditingDisabled
+              || heartbeatTimerId !== null
+            ) {
+              return
+            }
+
+            heartbeatTimerId = window.setInterval(
+              () => {
+                void heartbeat()
+              },
+              heartbeatMs
+            )
+          }
+
+          remoteWorkspaceReload?.addEventListener(
+            'click',
+            () => {
+              window.location.reload()
+            }
+          )
+
+          remoteWorkspaceRetry?.addEventListener(
+            'click',
+            async () => {
+              remoteWorkspaceRetry.disabled = true
+              remoteWorkspaceRetry.textContent = 'در حال تلاش...'
+
+              try {
+                const response = await fetch(
+                  retryLockUrl,
+                  {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    cache: 'no-store'
+                  }
+                )
+
+                const data = await readRemoteJson(
+                  response
+                )
+
+                if (!response.ok) {
+                  if (remoteWorkspaceAlertMessage) {
+                    remoteWorkspaceAlertMessage.textContent = (
+                      data?.message
+                      || 'قفل ویرایش هنوز در دسترس نیست.'
+                    )
+                  }
+
+                  remoteWorkspaceRetry.hidden = !(
+                    data?.retry_allowed
+                    ?? true
+                  )
+                  return
+                }
+
+                window.location.reload()
+              } catch (error) {
+                console.error(
+                  'Remote workspace lock retry failed:',
+                  error
+                )
+
+                if (remoteWorkspaceAlertMessage) {
+                  remoteWorkspaceAlertMessage.textContent = (
+                    'ارتباط با سلورا برقرار نشد. دوباره تلاش کن.'
+                  )
+                }
+              } finally {
+                if (!remoteWorkspaceRetry.hidden) {
+                  remoteWorkspaceRetry.disabled = false
+                  remoteWorkspaceRetry.textContent = 'تلاش مجدد برای گرفتن قفل'
+                }
+              }
+            }
+          )
+
+          startHeartbeat()
+
+      const form = document.getElementById('draft-editor-form')
+
+      if (!form) {
+        return
+      }
+
+      const navItems = Array.from(
+        form.querySelectorAll('[data-product-nav]')
+      )
+
+      const panels = Array.from(
+        form.querySelectorAll('[data-product-panel]')
+      )
+
+      const changeState = document.getElementById(
+        'draft-change-state'
+      )
+
+      const changeDetail = document.getElementById(
+        'draft-change-detail'
+      )
+
+      let activeIndex = 0
+
+      const itemStates = new Map()
+
+      const stateFor = (itemId) => {
+        if (!itemStates.has(itemId)) {
+          itemStates.set(itemId, {
+            timerId: null,
+            saving: false,
+            dirtyWhileSaving: false,
+            hasError: false
+          })
+        }
+
+        return itemStates.get(itemId)
+      }
+
+      const hasPendingChanges = () => {
+        return Array.from(itemStates.values()).some((state) => {
+          return (
+            state.timerId !== null
+            || state.saving
+            || state.dirtyWhileSaving
+          )
+        })
+      }
+
+      const hasErrors = () => {
+        return Array.from(itemStates.values()).some(
+          (state) => state.hasError
+        )
+      }
+
+      const updateGlobalState = () => {
+        if (hasErrors()) {
+          if (changeState) {
+            changeState.textContent = 'ذخیره خودکار بعضی تغییرات ناموفق بود'
+          }
+
+          if (changeDetail) {
+            changeDetail.textContent = 'روی محصول خطادار تغییری ایجاد کن تا دوباره تلاش شود، یا ذخیره دستی را بزن.'
+          }
+
+          return
+        }
+
+        if (hasPendingChanges()) {
+          if (changeState) {
+            changeState.textContent = 'در حال ذخیره تغییرات...'
+          }
+
+          if (changeDetail) {
+            changeDetail.textContent = 'می‌توانی ویرایش را ادامه بدهی.'
+          }
+
+          return
+        }
+
+        if (changeState) {
+          changeState.textContent = 'همه تغییرات ذخیره شده‌اند'
+        }
+
+        if (changeDetail) {
+          changeDetail.textContent = 'ذخیره خودکار فعال است.'
+        }
+      }
+
+      const activateProduct = (index) => {
+        if (
+          index < 0
+          || index >= panels.length
+        ) {
+          return
+        }
+
+        activeIndex = index
+
+        navItems.forEach((item, itemIndex) => {
+          item.classList.toggle(
+            'is-active',
+            itemIndex === activeIndex
+          )
+        })
+
+        panels.forEach((panel, panelIndex) => {
+          panel.classList.toggle(
+            'is-active',
+            panelIndex === activeIndex
+          )
+        })
+
+        panels[activeIndex]?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        })
+      }
+
+      const buildAutosavePayload = (panel) => {
+        const itemId = panel.dataset.productPanel
+        const payload = new FormData()
+
+        const selectedToggle = panel.querySelector(
+          `[data-enable-item="${itemId}"]`
+        )
+
+        const productName = panel.querySelector(
+          `[name="product_name__${itemId}"]`
+        )
+
+        const description = panel.querySelector(
+          `[name="description__${itemId}"]`
+        )
+
+        const salePrice = panel.querySelector(
+          `[name="sale_price__${itemId}"]`
+        )
+
+        const listPrice = panel.querySelector(
+          `[name="list_price__${itemId}"]`
+        )
+
+        const stock = panel.querySelector(
+          `[name="stock__${itemId}"]`
+        )
+
+        const colors = panel.querySelector(
+          `[name="colors__${itemId}"]`
+        )
+
+        const sizes = panel.querySelector(
+          `[name="sizes__${itemId}"]`
+        )
+
+        const primaryAsset = panel.querySelector(
+          `[name="primary_asset__${itemId}"]:checked`
+        )
+
+        payload.set(
+          'is_selected',
+          selectedToggle?.checked ? '1' : '0'
+        )
+
+        payload.set(
+          'product_name',
+          productName?.value ?? ''
+        )
+
+        payload.set(
+          'description',
+          description?.value ?? ''
+        )
+
+        payload.set(
+          'sale_price',
+          salePrice?.value ?? ''
+        )
+
+        payload.set(
+          'list_price',
+          listPrice?.value ?? ''
+        )
+
+        payload.set(
+          'stock',
+          stock?.value ?? '0'
+        )
+
+        payload.set(
+          'colors',
+          colors?.value ?? ''
+        )
+
+        payload.set(
+          'sizes',
+          sizes?.value ?? ''
+        )
+
+        payload.set(
+          'primary_asset_id',
+          primaryAsset?.value ?? ''
+        )
+
+        return payload
+      }
+
+      const readJson = async (response) => {
+        try {
+          return await response.json()
+        } catch {
+          return null
+        }
+      }
+
+      const autosavePanel = async (panel) => {
+        const itemId = panel.dataset.productPanel
+        const autosaveUrl = panel.dataset.autosaveUrl
+
+        if (
+          !itemId
+          || !autosaveUrl
+        ) {
+          return
+        }
+
+        const state = stateFor(itemId)
+
+        if (state.saving) {
+          state.dirtyWhileSaving = true
+          updateGlobalState()
+          return
+        }
+
+        state.saving = true
+        state.timerId = null
+        state.dirtyWhileSaving = false
+        state.hasError = false
+
+        updateGlobalState()
+
+        try {
+          const response = await fetch(
+            autosaveUrl,
+            {
+              method: 'POST',
+              body: buildAutosavePayload(panel),
+              credentials: 'same-origin',
+              cache: 'no-store'
+            }
+          )
+
+          const data = await readJson(response)
+
+          if (!response.ok) {
+            if (
+              response.status === 409
+              || response.status === 423
+              || data?.error === 'remote_workspace_unavailable'
+            ) {
+              disableRemoteEditing({
+                message: (
+                  data?.message
+                  || 'قفل ویرایش Workspace دیگر معتبر نیست.'
+                ),
+                retryAllowed: (
+                  data?.retry_allowed
+                  ?? true
+                )
+              })
+
+              state.hasError = false
+              return
+            }
+
+            throw new Error(
+              data?.message
+              || 'ذخیره خودکار انجام نشد.'
+            )
+          }
+
+          state.hasError = false
+        } catch (error) {
+          console.error(
+            'Draft item autosave failed:',
+            error
+          )
+
+          state.hasError = true
+        } finally {
+          state.saving = false
+
+          if (state.dirtyWhileSaving) {
+            state.dirtyWhileSaving = false
+
+            window.setTimeout(() => {
+              void autosavePanel(panel)
+            }, 0)
+          }
+
+          updateGlobalState()
+        }
+      }
+
+      const scheduleAutosave = (panel) => {
+        if (remoteEditingDisabled) {
+          return
+        }
+
+        const itemId = panel.dataset.productPanel
+
+        if (!itemId) {
+          return
+        }
+
+        const state = stateFor(itemId)
+
+        state.hasError = false
+
+        if (state.saving) {
+          state.dirtyWhileSaving = true
+          updateGlobalState()
+          return
+        }
+
+        if (state.timerId !== null) {
+          window.clearTimeout(state.timerId)
+        }
+
+        state.timerId = window.setTimeout(() => {
+          state.timerId = null
+          void autosavePanel(panel)
+        }, AUTOSAVE_DELAY_MS)
+
+        updateGlobalState()
+      }
+
+      navItems.forEach((item, index) => {
+        item.addEventListener('click', () => {
+          activateProduct(index)
+        })
+      })
+
+      panels.forEach((panel, index) => {
+        panel.querySelector('[data-prev-product]')?.addEventListener(
+          'click',
+          () => {
+            activateProduct(index - 1)
+          }
+        )
+
+        panel.querySelector('[data-next-product]')?.addEventListener(
+          'click',
+          () => {
+            activateProduct(index + 1)
+          }
+        )
+
+        panel.querySelectorAll(
+          'input, textarea, select'
+        ).forEach((field) => {
+          field.addEventListener(
+            'input',
+            () => scheduleAutosave(panel)
+          )
+
+          field.addEventListener(
+            'change',
+            () => scheduleAutosave(panel)
+          )
+        })
+      })
+
+      form.querySelectorAll('[data-enable-item]').forEach(
+        (toggle) => {
+          const sync = () => {
+            const itemId = toggle.dataset.enableItem
+
+            const navItem = form.querySelector(
+              `[data-product-nav="${itemId}"]`
+            )
+
+            navItem?.classList.toggle(
+              'is-disabled',
+              !toggle.checked
+            )
+          }
+
+          toggle.addEventListener(
+            'change',
+            sync
+          )
+
+          sync()
+        }
+      )
+
+      form.querySelectorAll('[data-product-name]').forEach(
+        (input) => {
+          input.addEventListener('input', () => {
+            const itemId = input.dataset.productName
+            const value = (
+              input.value.trim()
+              || 'محصول بدون نام'
+            )
+
+            const navTitle = form.querySelector(
+              `[data-nav-title="${itemId}"]`
+            )
+
+            const panelTitle = form.querySelector(
+              `[data-panel-title="${itemId}"]`
+            )
+
+            if (navTitle) {
+              navTitle.textContent = value
+            }
+
+            if (panelTitle) {
+              panelTitle.textContent = value
+            }
+          })
+        }
+      )
+
+      form.querySelectorAll('[data-primary-asset]').forEach(
+        (radio) => {
+          radio.addEventListener('change', () => {
+            const itemId = radio.dataset.primaryAsset
+
+            const group = form.querySelectorAll(
+              `input[name="${radio.name}"]`
+            )
+
+            group.forEach((input) => {
+              input.closest(
+                '.product-editor-asset'
+              )?.classList.toggle(
+                'is-primary',
+                input.checked
+              )
+            })
+
+            const previewUrl = radio.dataset.previewUrl
+
+            const preview = form.querySelector(
+              `[data-main-preview="${itemId}"]`
+            )
+
+            if (
+              preview
+              && previewUrl
+            ) {
+              preview.innerHTML = ''
+
+              const image = document.createElement(
+                'img'
+              )
+
+              image.src = previewUrl
+              image.alt = ''
+
+              preview.appendChild(image)
+            }
+          })
+        }
+      )
+
+      form.addEventListener('submit', () => {
+        if (changeState) {
+          changeState.textContent = 'در حال ذخیره نهایی...'
+        }
+
+        if (changeDetail) {
+          changeDetail.textContent = 'لطفاً چند لحظه صبر کن.'
+        }
+      })
+
+      window.addEventListener(
+        'beforeunload',
+        (event) => {
+          if (!hasPendingChanges()) {
+            return
+          }
+
+          event.preventDefault()
+          event.returnValue = ''
+        }
+      )
+
+      const requestedItemId = new URLSearchParams(
+        window.location.search
+      ).get('item')
+
+      const requestedIndex = requestedItemId
+        ? navItems.findIndex(
+            (item) => item.dataset.productNav === requestedItemId
+          )
+        : -1
+
+      activateProduct(
+        requestedIndex >= 0
+          ? requestedIndex
+          : 0
+      )
+
+      updateGlobalState()
+    })()
   </script>
 {% endblock %}

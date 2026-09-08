@@ -297,7 +297,33 @@ class Config:
         default="http://127.0.0.1:8000",
     )
 
-    SELORA_API_TOKEN: str = get_env_str(
-        "SELORA_API_TOKEN",
+    SELORA_API_KEY: str = get_env_str(
+        "SELORA_API_KEY",
         default="",
+    )
+
+    SELORA_API_CONNECT_TIMEOUT_SECONDS: int = get_env_int(
+        "SELORA_API_CONNECT_TIMEOUT_SECONDS",
+        default=5,
+        minimum=1,
+        maximum=60,
+    )
+
+    SELORA_API_READ_TIMEOUT_SECONDS: int = get_env_int(
+        "SELORA_API_READ_TIMEOUT_SECONDS",
+        default=30,
+        minimum=1,
+        maximum=300,
+    )
+
+    CLIENT_INSTANCE_ID_FILE: str = get_env_str(
+        "CLIENT_INSTANCE_ID_FILE",
+        default="instance/client_instance_id",
+    )
+
+    SELORA_WORKSPACE_HEARTBEAT_SECONDS: int = get_env_int(
+        "SELORA_WORKSPACE_HEARTBEAT_SECONDS",
+        default=120,
+        minimum=30,
+        maximum=600,
     )
