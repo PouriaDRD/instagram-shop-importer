@@ -60,25 +60,6 @@ def get_env_str(
 ) -> str:
     """
     Read a string environment variable.
-
-    Args:
-        key:
-            Environment variable name.
-
-        default:
-            Value returned when the variable is missing.
-
-        required:
-            When True, missing or empty values raise
-            ConfigurationError.
-
-    Returns:
-        A validated string value.
-
-    Raises:
-        ConfigurationError:
-            If the value is required but missing, or if neither
-            a value nor a default exists.
     """
 
     value = _get_raw_env(key)
@@ -87,7 +68,9 @@ def get_env_str(
         return value
 
     if required:
-        raise ConfigurationError(f"Missing required environment variable: {key}")
+        raise ConfigurationError(
+            f"Missing required environment variable: {key}"
+        )
 
     if default is None:
         raise ConfigurationError(
@@ -118,7 +101,9 @@ def get_env_int(
 
     if raw_value is None:
         if required:
-            raise ConfigurationError(f"Missing required environment variable: {key}")
+            raise ConfigurationError(
+                f"Missing required environment variable: {key}"
+            )
 
         if default is None:
             raise ConfigurationError(
@@ -169,19 +154,15 @@ def get_env_bool(
 ) -> bool:
     """
     Read a boolean environment variable.
-
-    Accepted true values:
-        1, true, yes, on
-
-    Accepted false values:
-        0, false, no, off
     """
 
     raw_value = _get_raw_env(key)
 
     if raw_value is None:
         if required:
-            raise ConfigurationError(f"Missing required environment variable: {key}")
+            raise ConfigurationError(
+                f"Missing required environment variable: {key}"
+            )
 
         if default is None:
             raise ConfigurationError(
@@ -214,14 +195,7 @@ def get_env_bool(
 class Config:
     """
     Central application configuration.
-
-    All configuration is loaded once at application startup and
-    exposed through explicitly typed class attributes.
     """
-
-    # ========================================================
-    # Application
-    # ========================================================
 
     DEBUG: bool = get_env_bool(
         "DEBUG",
@@ -233,10 +207,6 @@ class Config:
         default="strong-dev-secret-key",
     )
 
-    # ========================================================
-    # Logging
-    # ========================================================
-
     LOG_LEVEL: str = (
         get_env_str(
             "LOG_LEVEL",
@@ -245,10 +215,6 @@ class Config:
         .strip()
         .upper()
     )
-
-    # ========================================================
-    # Web server
-    # ========================================================
 
     HOSTNAME: str = get_env_str(
         "HOSTNAME",
@@ -262,20 +228,12 @@ class Config:
         maximum=65535,
     )
 
-    # ========================================================
-    # Database
-    # ========================================================
-
     SQLALCHEMY_DATABASE_URI: str = get_env_str(
         "DATABASE_URL",
         default="sqlite:///instagram_importer.db",
     )
 
     SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
-
-    # ========================================================
-    # Playwright
-    # ========================================================
 
     PLAYWRIGHT_HEADLESS: bool = get_env_bool(
         "PLAYWRIGHT_HEADLESS",
@@ -286,6 +244,34 @@ class Config:
         "PLAYWRIGHT_TIMEOUT_MS",
         default=30_000,
         minimum=1_000,
+    )
+
+    # ========================================================
+    # Local Instagram media cache
+    # ========================================================
+
+    INSTAGRAM_MEDIA_CACHE_ENABLED: bool = get_env_bool(
+        "INSTAGRAM_MEDIA_CACHE_ENABLED",
+        default=True,
+    )
+
+    INSTAGRAM_MEDIA_CACHE_DIR: str = get_env_str(
+        "INSTAGRAM_MEDIA_CACHE_DIR",
+        default="instance/media_cache/instagram",
+    )
+
+    INSTAGRAM_MEDIA_CACHE_TIMEOUT_SECONDS: int = get_env_int(
+        "INSTAGRAM_MEDIA_CACHE_TIMEOUT_SECONDS",
+        default=30,
+        minimum=1,
+        maximum=300,
+    )
+
+    INSTAGRAM_MEDIA_CACHE_MAX_BYTES: int = get_env_int(
+        "INSTAGRAM_MEDIA_CACHE_MAX_BYTES",
+        default=262_144_000,
+        minimum=1_048_576,
+        maximum=2_147_483_647,
     )
 
     # ========================================================

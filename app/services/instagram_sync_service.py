@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import logging
 
+from app.config import Config
 from app.crawler.base import InstagramProvider
 from app.models import InstagramSource
 from app.repositories import InstagramSourceRepository
+from app.services.media_cache_service import (
+    InstagramMediaCacheService,
+)
 
 logger = logging.getLogger("crawler")
 
@@ -24,9 +28,15 @@ class InstagramSyncService:
         *,
         provider: InstagramProvider,
         repository: InstagramSourceRepository,
+        media_cache_service: (
+            InstagramMediaCacheService | None
+        ) = None,
     ) -> None:
         self._provider = provider
         self._repository = repository
+        self._media_cache_service = (
+            media_cache_service
+        )
 
     def get_or_create_source(
         self,
@@ -120,6 +130,10 @@ class InstagramSyncService:
                 full_sync=(max_items is None),
             )
 
+            self._cache_media_safely(
+                source=source,
+            )
+
             self._repository.mark_completed(
                 session=source,
             )
@@ -154,21 +168,12 @@ class InstagramSyncService:
     ) -> None:
         """
         Compatibility boundary.
-
-        Production currently instantiates InstagramSourceRepository directly.
-        That exact concrete repository gets the new persistent sync_media()
-        behavior.
-
-        Existing tests intentionally use repository doubles/subclasses with
-        custom replace_media() behavior and failure injection. Those must keep
-        receiving the historical replace_media() call so the service remains
-        testable through its established seam.
-
-        When those test contracts are migrated later, this compatibility
-        branch can be removed.
         """
 
-        if type(self._repository) is InstagramSourceRepository:
+        if (
+            type(self._repository)
+            is InstagramSourceRepository
+        ):
             self._repository.sync_media(
                 session=source,
                 media_items=media_items,
@@ -179,6 +184,69 @@ class InstagramSyncService:
         self._repository.replace_media(
             session=source,
             media_items=media_items,
+        )
+
+    def _cache_media_safely(
+        self,
+        *,
+        source: InstagramSource,
+    ) -> None:
+        if not Config.INSTAGRAM_MEDIA_CACHE_ENABLED:
+            return
+
+        # Existing fake/subclass repository tests retain their historical
+        # seam and must never start doing real network I/O.
+        if (
+            type(self._repository)
+            is not InstagramSourceRepository
+            and self._media_cache_service
+            is None
+        ):
+            return
+
+        service = (
+            self._media_cache_service
+            or InstagramMediaCacheService(
+                root_path=(
+                    Config.INSTAGRAM_MEDIA_CACHE_DIR
+                ),
+                timeout_seconds=(
+                    Config
+                    .INSTAGRAM_MEDIA_CACHE_TIMEOUT_SECONDS
+                ),
+                max_bytes=(
+                    Config.INSTAGRAM_MEDIA_CACHE_MAX_BYTES
+                ),
+            )
+        )
+
+        try:
+            result = service.cache_source(
+                source=source,
+            )
+
+        except Exception:
+            # Local cache is deliberately auxiliary. A cache failure must not
+            # turn a successful Instagram source synchronization into a failed
+            # crawl.
+            logger.exception(
+                (
+                    "Local Instagram media cache "
+                    "failed for @%s"
+                ),
+                source.username,
+            )
+            return
+
+        logger.info(
+            (
+                "Local Instagram media cache for @%s: "
+                "%s cached, %s reused, %s failed"
+            ),
+            source.username,
+            result.cached,
+            result.reused,
+            result.failed,
         )
 
     def _mark_failed_safely(

@@ -284,6 +284,42 @@ class InstagramAsset(db.Model):
         nullable=False,
     )
 
+    local_cache_path: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    local_cache_status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="missing",
+    )
+
+    local_cached_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    local_content_type: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    local_file_size: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
+    local_sha256: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
+    local_cache_error: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
     position: Mapped[int] = mapped_column(
         Integer,
         nullable=False,

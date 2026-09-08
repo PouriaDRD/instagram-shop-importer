@@ -655,7 +655,20 @@
                   data-media-card="{{ media.id }}"
                 >
                   <div class="selection-card__media">
-                    {% if media.thumbnail_url %}
+                    {% set preview_asset = namespace(asset=None) %}
+                    {% for asset in media.assets %}
+                      {% if preview_asset.asset is none and asset.is_available and asset.asset_type != 'video' %}
+                        {% set preview_asset.asset = asset %}
+                      {% endif %}
+                    {% endfor %}
+
+                    {% if preview_asset.asset %}
+                      <img
+                        src="{{ url_for('web.cached_instagram_asset', asset_id=preview_asset.asset.id) }}"
+                        alt="{{ media.shortcode }}"
+                        loading="lazy"
+                      />
+                    {% elif media.thumbnail_url %}
                       <img src="{{ media.thumbnail_url }}" alt="{{ media.shortcode }}" loading="lazy" />
                     {% else %}
                       <div class="selection-card__placeholder">تصویر موجود نیست</div>
@@ -792,7 +805,7 @@
                               {% if asset.asset_type == 'video' %}
                                 <div class="asset-choice__video">▶ Video</div>
                               {% else %}
-                                <img src="{{ asset.source_url }}" alt="" loading="lazy" />
+                                <img src="{{ url_for('web.cached_instagram_asset', asset_id=asset.id) }}" alt="" loading="lazy" />
                               {% endif %}
 
                               <span class="asset-choice__check">✓</span>

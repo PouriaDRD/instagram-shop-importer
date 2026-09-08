@@ -11,10 +11,13 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_file,
     url_for,
 )
 from flask.typing import ResponseReturnValue
 
+from app.extensions import db
+from app.models import InstagramAsset
 from app.crawler.instagram import PlaywrightInstagramProvider
 from app.repositories import CrawlSessionRepository, ImportDraftRepository
 from app.services import BackgroundCrawlRunner, CrawlService
@@ -38,6 +41,9 @@ from app.services.remote_workspace_coordinator import (
 )
 from app.services.import_validation_service import (
     ImportDraftValidationService,
+)
+from app.services.media_cache_service import (
+    InstagramMediaCacheService,
 )
 
 logger = logging.getLogger("app")
@@ -248,6 +254,62 @@ def crawl_list() -> str:
     repository = CrawlSessionRepository()
     sessions = repository.list_all(limit=100)
     return render_template("crawl_list.html", sessions=sessions)
+
+
+@web_bp.get("/media-cache/assets/<asset_id>")
+def cached_instagram_asset(
+    asset_id: str,
+) -> ResponseReturnValue:
+    asset = db.session.get(
+        InstagramAsset,
+        asset_id,
+    )
+
+    if asset is None:
+        abort(404)
+
+    cache_service = InstagramMediaCacheService(
+        root_path=current_app.config[
+            "INSTAGRAM_MEDIA_CACHE_DIR"
+        ],
+        timeout_seconds=current_app.config[
+            "INSTAGRAM_MEDIA_CACHE_TIMEOUT_SECONDS"
+        ],
+        max_bytes=current_app.config[
+            "INSTAGRAM_MEDIA_CACHE_MAX_BYTES"
+        ],
+    )
+
+    cache_path = cache_service.resolve_cache_path(
+        asset=asset,
+    )
+
+    if (
+        cache_path is not None
+        and cache_path.is_file()
+        and cache_path.stat().st_size > 0
+    ):
+        return send_file(
+            cache_path,
+            mimetype=(
+                asset.local_content_type
+                or None
+            ),
+            conditional=True,
+            max_age=86_400,
+        )
+
+    source_url = (
+        asset.source_url or ""
+    ).strip()
+
+    if source_url:
+        return redirect(
+            source_url,
+            code=302,
+        )
+
+    abort(404)
 
 
 @web_bp.get("/crawl")
