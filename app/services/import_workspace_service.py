@@ -166,6 +166,9 @@ class ImportWorkspaceService:
 
         try:
             for item in target.items:
+                if not item.is_selected:
+                    continue
+
                 if item.product_data is None:
                     self._repository.add_product_data(
                         item=item,

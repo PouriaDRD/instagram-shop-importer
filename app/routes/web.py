@@ -743,12 +743,26 @@ def save_import_draft(draft_id: str) -> ResponseReturnValue:
             workspace=draft,
         )
 
-        for item in draft.items:
+        selected_item_ids = set(
+            request.form.getlist(
+                "selected_item_ids"
+            )
+        )
+
+        rendered_items = [
+            item
+            for item in draft.items
+            if item.is_selected
+        ]
+
+        for item in rendered_items:
             updates.append(
                 ImportDraftItemUpdate(
                     item_id=item.id,
-                    is_selected=item.id
-                    in set(request.form.getlist("selected_item_ids")),
+                    is_selected=(
+                        item.id
+                        in selected_item_ids
+                    ),
                     product_name=request.form.get(
                         f"product_name__{item.id}", ""
                     ).strip(),

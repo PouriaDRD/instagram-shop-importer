@@ -454,6 +454,7 @@
 {% endblock %}
 
 {% block content %}
+  {% set selected_items = draft.items | selectattr('is_selected') | list %}
   <nav class="import-flow" aria-label="مراحل آماده‌سازی ایمپورت">
     <a class="import-flow__step is-complete" href="{{ url_for('web.crawl_detail', session_id=draft.crawl_session_id) }}">
       <span class="import-flow__number">۱</span>
@@ -495,7 +496,7 @@
     </div>
 
     <div class="draft-editor-hero__meta">
-      <div><strong>{{ draft.items|length }}</strong><span>آیتم Draft</span></div>
+      <div><strong>{{ selected_items|length }}</strong><span>آیتم Draft</span></div>
       <div><strong>{{ draft.created_at|iran_date }}</strong><span>تاریخ ایجاد</span></div>
       <span class="session-status session-status--pending">Draft</span>
     </div>
@@ -561,7 +562,7 @@
     </div>
   {% endif %}
 
-  {% if draft.items %}
+  {% if selected_items %}
     <form
       method="post"
       action="{{ url_for('web.save_import_draft', draft_id=draft.id) }}"
@@ -580,11 +581,12 @@
           </div>
 
           <div class="product-workspace__list">
-            {% for item in draft.items %}
+            {% for item in selected_items %}
               {% set pd = item.product_data %}
+              {% set active_assets = item.selected_assets | selectattr('is_selected') | list %}
               {% set primary = namespace(asset=None) %}
 
-              {% for selected_asset in item.selected_assets %}
+              {% for selected_asset in active_assets %}
                 {% if selected_asset.is_primary %}
                   {% set primary.asset = selected_asset %}
                 {% endif %}
@@ -592,7 +594,7 @@
 
               <button
                 type="button"
-                class="product-nav-item {% if loop.first %}is-active{% endif %} {% if not item.is_selected %}is-disabled{% endif %}"
+                class="product-nav-item {% if loop.first %}is-active{% endif %}"
                 data-product-nav="{{ item.id }}"
                 data-product-index="{{ loop.index0 }}"
               >
@@ -622,8 +624,9 @@
         </aside>
 
         <section>
-          {% for item in draft.items %}
+          {% for item in selected_items %}
             {% set pd = item.product_data %}
+              {% set active_assets = item.selected_assets | selectattr('is_selected') | list %}
 
             <article
               class="product-editor-panel {% if loop.first %}is-active{% endif %}"
@@ -657,7 +660,7 @@
                   <div class="product-editor-visual__main" data-main-preview="{{ item.id }}">
                     {% set primary = namespace(asset=None) %}
 
-                    {% for selected_asset in item.selected_assets %}
+                    {% for selected_asset in active_assets %}
                       {% if selected_asset.is_primary %}
                         {% set primary.asset = selected_asset %}
                       {% endif %}
@@ -672,9 +675,9 @@
                     {% endif %}
                   </div>
 
-                  {% if item.selected_assets %}
+                  {% if active_assets %}
                     <div class="product-editor-assets">
-                      {% for selected_asset in item.selected_assets %}
+                      {% for selected_asset in active_assets %}
                         <label class="product-editor-asset {% if selected_asset.is_primary %}is-primary{% endif %}">
                           <input
                             type="radio"
@@ -805,7 +808,7 @@
 
               <div class="product-editor-navigation">
                 <span class="product-editor-navigation__position">
-                  محصول {{ loop.index }} از {{ draft.items|length }}
+                  محصول {{ loop.index }} از {{ selected_items|length }}
                 </span>
 
                 <div class="product-editor-navigation__actions">
