@@ -4,251 +4,1193 @@
   @{{ crawl_session.username }} | Selora Importer
 {% endblock %}
 
+{% block head %}
+  {{ super() }}
+  <style>
+    .selection-page {
+      padding-bottom: 110px;
+    }
+
+    .selection-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin: 20px 0 22px;
+    }
+
+    .selection-summary__item {
+      padding: 16px 18px;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      background: #fff;
+    }
+
+    .selection-summary__item strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 22px;
+      line-height: 1.2;
+      color: #111827;
+    }
+
+    .selection-summary__item span {
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    .selection-summary__item--accent {
+      border-color: #c7d2fe;
+      background: #eef2ff;
+    }
+
+    .selection-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .selection-card {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+      border-radius: 18px;
+      background: #fff;
+      transition:
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        transform 160ms ease,
+        opacity 160ms ease;
+    }
+
+    .selection-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(17, 24, 39, 0.08);
+    }
+
+    .selection-card.is-selected {
+      border-color: #818cf8;
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.09);
+    }
+
+    .selection-card.is-unselected {
+      opacity: 0.64;
+    }
+
+    .selection-card__media {
+      position: relative;
+      aspect-ratio: 4 / 3;
+      overflow: hidden;
+      background: #f3f4f6;
+    }
+
+    .selection-card__media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .selection-card__placeholder {
+      display: grid;
+      place-items: center;
+      width: 100%;
+      height: 100%;
+      color: #9ca3af;
+      font-size: 13px;
+    }
+
+    .selection-card__badges {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .selection-card__badge {
+      padding: 6px 9px;
+      border-radius: 999px;
+      background: rgba(17, 24, 39, 0.82);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      backdrop-filter: blur(8px);
+    }
+
+    .selection-card__body {
+      display: flex;
+      min-height: 236px;
+      flex-direction: column;
+      padding: 16px;
+    }
+
+    .selection-card__topline {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+
+    .selection-card__identity {
+      min-width: 0;
+    }
+
+    .selection-card__shortcode {
+      margin-bottom: 5px;
+      color: #111827;
+      font-size: 13px;
+      font-weight: 800;
+      direction: ltr;
+      text-align: right;
+    }
+
+    .selection-card__caption {
+      display: -webkit-box;
+      overflow: hidden;
+      margin: 0;
+      color: #6b7280;
+      font-size: 13px;
+      line-height: 1.9;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+    }
+
+    .selection-toggle {
+      display: inline-flex;
+      flex: 0 0 auto;
+      gap: 8px;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .selection-toggle input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .selection-toggle__box {
+      display: grid;
+      width: 24px;
+      height: 24px;
+      place-items: center;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      background: #fff;
+      color: transparent;
+      font-size: 13px;
+      font-weight: 900;
+      transition: 150ms ease;
+    }
+
+    .selection-toggle input:checked + .selection-toggle__box {
+      border-color: #4f46e5;
+      background: #4f46e5;
+      color: #fff;
+    }
+
+    .selection-toggle__label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #374151;
+    }
+
+    .selection-card__footer {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: auto;
+      padding-top: 16px;
+      border-top: 1px solid #f3f4f6;
+    }
+
+    .selection-card__asset-summary {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .selection-card__asset-summary strong {
+      font-size: 12px;
+      color: #111827;
+    }
+
+    .selection-card__asset-summary span {
+      font-size: 11px;
+      color: #9ca3af;
+    }
+
+    .asset-manage-button:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+
+    .asset-dialog {
+      width: min(760px, calc(100vw - 32px));
+      max-height: min(760px, calc(100vh - 48px));
+      padding: 0;
+      border: 0;
+      border-radius: 22px;
+      box-shadow: 0 24px 80px rgba(17, 24, 39, 0.28);
+    }
+
+    .asset-dialog::backdrop {
+      background: rgba(17, 24, 39, 0.55);
+      backdrop-filter: blur(3px);
+    }
+
+    .asset-dialog__shell {
+      display: flex;
+      max-height: min(760px, calc(100vh - 48px));
+      flex-direction: column;
+      background: #fff;
+    }
+
+    .asset-dialog__header {
+      display: flex;
+      gap: 18px;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 20px 22px 16px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .asset-dialog__header h3 {
+      margin: 0 0 5px;
+      font-size: 17px;
+      color: #111827;
+    }
+
+    .asset-dialog__header p {
+      margin: 0;
+      color: #6b7280;
+      font-size: 12px;
+      line-height: 1.8;
+    }
+
+    .asset-dialog__close {
+      display: grid;
+      width: 36px;
+      height: 36px;
+      flex: 0 0 36px;
+      place-items: center;
+      border: 0;
+      border-radius: 10px;
+      background: #f3f4f6;
+      color: #374151;
+      cursor: pointer;
+      font-size: 18px;
+    }
+
+    .asset-dialog__toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 22px;
+      border-bottom: 1px solid #f3f4f6;
+      background: #fafafa;
+    }
+
+    .asset-dialog__toolbar-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .asset-dialog__count {
+      font-size: 12px;
+      font-weight: 700;
+      color: #4f46e5;
+    }
+
+    .asset-dialog__body {
+      overflow: auto;
+      padding: 18px 22px 22px;
+    }
+
+    .asset-dialog__grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .asset-choice {
+      position: relative;
+      overflow: hidden;
+      aspect-ratio: 1 / 1;
+      border: 2px solid transparent;
+      border-radius: 14px;
+      background: #f3f4f6;
+      cursor: pointer;
+      transition: 150ms ease;
+    }
+
+    .asset-choice.is-selected {
+      border-color: #4f46e5;
+    }
+
+    .asset-choice input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .asset-choice img,
+    .asset-choice__video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .asset-choice__video {
+      display: grid;
+      place-items: center;
+      background: #111827;
+      color: #fff;
+      font-size: 13px;
+    }
+
+    .asset-choice__check {
+      position: absolute;
+      top: 9px;
+      right: 9px;
+      display: grid;
+      width: 26px;
+      height: 26px;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 8px;
+      background: rgba(17, 24, 39, 0.65);
+      color: transparent;
+      font-weight: 900;
+      backdrop-filter: blur(6px);
+    }
+
+    .asset-choice.is-selected .asset-choice__check {
+      background: #4f46e5;
+      color: #fff;
+    }
+
+    .asset-choice__type {
+      position: absolute;
+      right: 9px;
+      bottom: 9px;
+      padding: 5px 7px;
+      border-radius: 999px;
+      background: rgba(17, 24, 39, 0.7);
+      color: #fff;
+      font-size: 10px;
+    }
+
+    .asset-dialog__footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 14px 22px;
+      border-top: 1px solid #e5e7eb;
+      background: #fff;
+    }
+
+    .selection-stickybar {
+      position: fixed;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 40;
+      border-top: 1px solid #e5e7eb;
+      background: rgba(255, 255, 255, 0.95);
+      box-shadow: 0 -8px 28px rgba(17, 24, 39, 0.08);
+      backdrop-filter: blur(12px);
+    }
+
+    .selection-stickybar__inner {
+      display: flex;
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      gap: 18px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 0;
+    }
+
+    .selection-stickybar__summary {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .selection-stickybar__metric {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .selection-stickybar__metric strong {
+      font-size: 14px;
+      color: #111827;
+    }
+
+    .selection-stickybar__metric span {
+      font-size: 11px;
+      color: #9ca3af;
+    }
+
+    .selection-stickybar__actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .selection-empty-warning {
+      display: none;
+      margin-top: 10px;
+      color: #b91c1c;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .selection-empty-warning.is-visible {
+      display: block;
+    }
+
+    @media (max-width: 980px) {
+      .selection-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 720px) {
+      .selection-summary {
+        grid-template-columns: 1fr;
+      }
+
+      .selection-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .asset-dialog__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .selection-stickybar__inner {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .selection-stickybar__actions {
+        width: 100%;
+      }
+
+      .selection-stickybar__actions .button {
+        flex: 1;
+      }
+    }
+  </style>
+{% endblock %}
+
 {% block breadcrumb %}
   <nav class="page-breadcrumb" aria-label="مسیر صفحه">
     <a href="{{ url_for('web.index') }}">شروع کراول</a>
-
     <span class="page-breadcrumb__separator">/</span>
-
     <a href="{{ url_for('web.crawl_list') }}">نشست‌ها</a>
-
     <span class="page-breadcrumb__separator">/</span>
-
     <span class="page-breadcrumb__current" dir="ltr">@{{ crawl_session.username }}</span>
   </nav>
 {% endblock %}
 
 {% block content %}
-  <section class="crawl-detail-header">
-    <div class="crawl-profile">
-      {% if crawl_session.profile_picture_url %}
-        <img src="{{ crawl_session.profile_picture_url }}" alt="@{{ crawl_session.username }}" class="crawl-profile__avatar" />
-      {% else %}
-        <div class="crawl-profile__avatar-placeholder" aria-hidden="true">{{ crawl_session.username[:1]|upper }}</div>
-      {% endif %}
+  <div class="selection-page">
+    <nav class="import-flow" aria-label="مراحل آماده‌سازی ایمپورت">
+      <a class="import-flow__step is-complete" href="{{ url_for('web.crawl_detail', session_id=crawl_session.id) }}">
+        <span class="import-flow__number">۱</span>
+        <span class="import-flow__content"><strong>کراول</strong><small>دریافت اطلاعات پیج</small></span>
+      </a>
+      <span class="import-flow__connector is-complete"></span>
 
-      <div class="crawl-profile__content">
-        <h1 class="crawl-profile__name">{{ crawl_session.full_name or crawl_session.username }}</h1>
-
-        <div class="crawl-profile__username" dir="ltr">@{{ crawl_session.username }}</div>
-
-        {% if crawl_session.biography %}
-          <p class="crawl-profile__bio">{{ crawl_session.biography }}</p>
-        {% endif %}
-
-        <div class="crawl-profile__stats">
-          <span class="crawl-profile__stat">
-            <strong>{{ crawl_session.followers_count or 0 }}</strong>
-            دنبال‌کننده
-          </span>
-
-          <span class="crawl-profile__stat">
-            <strong>{{ crawl_session.following_count or 0 }}</strong>
-            دنبال‌شونده
-          </span>
-
-          {% if crawl_session.instagram_media_count is not none %}
-            <span class="crawl-profile__stat">
-              <strong>{{ crawl_session.instagram_media_count }}</strong>
-              محتوای اینستاگرام
-            </span>
-          {% endif %}
-
-          <span class="crawl-profile__stat">
-            <strong>{{ crawl_session.crawled_media_count }}</strong>
-            دریافت‌شده
-          </span>
-        </div>
+      <div class="import-flow__step is-current" aria-current="step">
+        <span class="import-flow__number">۲</span>
+        <span class="import-flow__content"><strong>انتخاب محتوا</strong><small>انتخاب پست‌های محصول</small></span>
       </div>
-    </div>
+      <span class="import-flow__connector"></span>
 
-    <div>
-      {% if crawl_session.status == 'completed' %}
-        <span class="session-status session-status--completed">تکمیل‌شده</span>
-      {% elif crawl_session.status == 'running' %}
-        <span class="session-status session-status--running">در حال اجرا</span>
-      {% elif crawl_session.status == 'failed' %}
-        <span class="session-status session-status--failed">ناموفق</span>
-      {% else %}
-        <span class="session-status session-status--pending">در انتظار</span>
-      {% endif %}
-    </div>
-  </section>
-
-  <section class="detail-time-section">
-    <div class="detail-time-section__header">
-      <div>
-        <h2 class="detail-time-section__title">زمان‌بندی نشست</h2>
-
-        <p class="detail-time-section__description">تمام تاریخ‌ها بر اساس تقویم شمسی و ساعت ایران نمایش داده می‌شوند.</p>
+      <div class="import-flow__step is-upcoming">
+        <span class="import-flow__number">۳</span>
+        <span class="import-flow__content"><strong>ویرایش محصولات</strong><small>اطلاعات و قیمت</small></span>
       </div>
-    </div>
+      <span class="import-flow__connector"></span>
 
-    <div class="detail-time-grid">
-      <article class="detail-time-card">
-        <div class="detail-time-card__icon">۱</div>
+      <div class="import-flow__step is-upcoming">
+        <span class="import-flow__number">۴</span>
+        <span class="import-flow__content"><strong>بررسی نهایی</strong><small>کنترل قبل از ارسال</small></span>
+      </div>
+      <span class="import-flow__connector"></span>
 
-        <div class="detail-time-card__content">
-          <span class="detail-time-card__label">ایجاد نشست</span>
+      <div class="import-flow__step is-upcoming">
+        <span class="import-flow__number">۵</span>
+        <span class="import-flow__content"><strong>ارسال به سلورا</strong><small>ساخت Draft در سلورا</small></span>
+      </div>
+    </nav>
 
-          <strong class="detail-time-card__date">{{ crawl_session.created_at|iran_date }}</strong>
-
-          <span class="detail-time-card__time">
-            ساعت
-            {{ crawl_session.created_at|iran_time }}
-          </span>
-
-          <p class="detail-time-card__help">زمانی که این نشست در Importer ساخته شده است.</p>
-        </div>
-      </article>
-
-      <article class="detail-time-card">
-        <div class="detail-time-card__icon">۲</div>
-
-        <div class="detail-time-card__content">
-          <span class="detail-time-card__label">شروع کراول</span>
-
-          {% if crawl_session.started_at %}
-            <strong class="detail-time-card__date">{{ crawl_session.started_at|iran_date }}</strong>
-
-            <span class="detail-time-card__time">
-              ساعت
-              {{ crawl_session.started_at|iran_time }}
-            </span>
+    <section class="crawl-overview-card">
+      <div class="crawl-overview-card__main">
+        <div class="crawl-profile">
+          {% if crawl_session.profile_picture_url %}
+            <img src="{{ crawl_session.profile_picture_url }}" alt="@{{ crawl_session.username }}" class="crawl-profile__avatar" />
           {% else %}
-            <strong class="detail-time-card__date detail-time-card__date--empty">هنوز شروع نشده</strong>
+            <div class="crawl-profile__avatar-placeholder" aria-hidden="true">{{ crawl_session.username[:1]|upper }}</div>
           {% endif %}
 
-          <p class="detail-time-card__help">زمانی که دریافت اطلاعات پیج از اینستاگرام واقعاً آغاز شده است.</p>
-        </div>
-      </article>
-
-      <article class="detail-time-card">
-        <div class="detail-time-card__icon">۳</div>
-
-        <div class="detail-time-card__content">
-          <span class="detail-time-card__label">پایان کراول</span>
-
-          {% if crawl_session.completed_at %}
-            <strong class="detail-time-card__date">{{ crawl_session.completed_at|iran_date }}</strong>
-
-            <span class="detail-time-card__time">
-              ساعت
-              {{ crawl_session.completed_at|iran_time }}
-            </span>
-          {% elif crawl_session.status == 'running' %}
-            <strong class="detail-time-card__date detail-time-card__date--running">در حال اجرا</strong>
-          {% else %}
-            <strong class="detail-time-card__date detail-time-card__date--empty">ثبت نشده</strong>
-          {% endif %}
-
-          <p class="detail-time-card__help">زمانی که دریافت و ذخیره محتوای این نشست به پایان رسیده است.</p>
-        </div>
-      </article>
-    </div>
-  </section>
-
-  {% if crawl_session.status == 'failed' and crawl_session.error_message %}
-    <div class="crawl-error">{{ crawl_session.error_message }}</div>
-  {% endif %}
-
-  <section class="crawl-media-section">
-    <div class="crawl-section-header">
-      <div>
-        <h2 class="crawl-section-title">محتوای استخراج‌شده</h2>
-
-        <p class="crawl-section-description">پست‌ها و ریلزهای دریافت‌شده در این نشست</p>
-      </div>
-
-      <span class="crawl-section-count">
-        {{ crawl_session.media|length }}
-        مورد
-      </span>
-    </div>
-
-    {% if crawl_session.media %}
-      <div class="crawl-media-grid">
-        {% for media in crawl_session.media %}
-          <article class="crawl-media-card">
-            <div class="crawl-media-card__media">
-              {% if media.thumbnail_url %}
-                <img src="{{ media.thumbnail_url }}" alt="{{ media.shortcode }}" loading="lazy" />
-              {% else %}
-                <div class="crawl-media-card__placeholder">تصویر موجود نیست</div>
-              {% endif %}
-
-              <span class="crawl-media-card__type">
-                {% if media.media_type == 'reel' %}
-                  Reel
-                {% elif media.media_type == 'carousel' %}
-                  Carousel
-                {% elif media.media_type == 'video' %}
-                  Video
-                {% elif media.media_type == 'image' %}
-                  Image
-                {% else %}
-                  {{ media.media_type }}
-                {% endif %}
-              </span>
-            </div>
-
-            <div class="crawl-media-card__body">
-              <div class="crawl-media-card__shortcode">{{ media.shortcode }}</div>
-
-              {% if media.caption %}
-                <p class="crawl-media-card__caption">{{ media.caption }}</p>
-              {% else %}
-                <p class="crawl-media-card__caption crawl-media-card__caption--empty">بدون کپشن</p>
-              {% endif %}
-
-              <div class="crawl-media-card__meta">
-                <span>
-                  {{ media.assets|length }}
-                  فایل
-                </span>
-
-                {% if media.like_count is not none %}
-                  <span>
-                    {{ media.like_count }}
-                    لایک
-                  </span>
-                {% endif %}
-
-                {% if media.comment_count is not none %}
-                  <span>
-                    {{ media.comment_count }}
-                    کامنت
-                  </span>
-                {% endif %}
-
-                {% if media.view_count is not none %}
-                  <span>
-                    {{ media.view_count }}
-                    بازدید
-                  </span>
-                {% endif %}
+          <div class="crawl-profile__content">
+            <div class="crawl-profile__heading">
+              <div>
+                <h1 class="crawl-profile__name">{{ crawl_session.full_name or crawl_session.username }}</h1>
+                <div class="crawl-profile__username" dir="ltr">@{{ crawl_session.username }}</div>
               </div>
 
-              {% if media.published_at %}
-                <div class="media-published-date">
-                  <span class="media-published-date__label">تاریخ انتشار در اینستاگرام</span>
-
-                  <strong class="media-published-date__value">{{ media.published_at|iran_date }}</strong>
-
-                  <span class="media-published-date__time">
-                    ساعت
-                    {{ media.published_at|iran_time }}
-                  </span>
-                </div>
+              {% if crawl_session.status == 'completed' %}
+                <span class="session-status session-status--completed"><span class="session-status__dot"></span>تکمیل‌شده</span>
+              {% elif crawl_session.status == 'running' %}
+                <span class="session-status session-status--running"><span class="session-status__dot session-status__dot--pulse"></span>در حال اجرا</span>
+              {% elif crawl_session.status == 'failed' %}
+                <span class="session-status session-status--failed"><span class="session-status__dot"></span>ناموفق</span>
+              {% else %}
+                <span class="session-status session-status--pending"><span class="session-status__dot"></span>در انتظار</span>
               {% endif %}
-
-              <a href="{{ media.permalink }}" target="_blank" rel="noopener noreferrer" class="crawl-media-card__link">مشاهده در اینستاگرام</a>
             </div>
-          </article>
-        {% endfor %}
+
+            {% if crawl_session.biography %}
+              <p class="crawl-profile__bio">{{ crawl_session.biography }}</p>
+            {% endif %}
+          </div>
+        </div>
       </div>
-    {% else %}
-      <div class="crawl-empty">محتوایی برای این نشست دریافت نشده است.</div>
+    </section>
+
+    {% if crawl_session.status == 'failed' and crawl_session.error_message %}
+      <div class="crawl-error">
+        <div class="crawl-error__icon">!</div>
+        <div>
+          <strong>کراول با خطا متوقف شد</strong>
+          <p>{{ crawl_session.error_message }}</p>
+        </div>
+      </div>
     {% endif %}
-  </section>
+
+    {% if draft_error %}
+      <div class="crawl-error">
+        <div class="crawl-error__icon">!</div>
+        <div>
+          <strong>پیش‌نویس به‌روزرسانی نشد</strong>
+          <p>{{ draft_error }}</p>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if current_draft %}
+      <div class="draft-save-message draft-save-message--success">
+        <strong>همین Draft در حال ویرایش است.</strong>
+        <span>انتخاب‌های جدید روی Draft فعلی ذخیره می‌شوند و ویرایش‌های محصول از بین نمی‌روند.</span>
+        <a
+          class="button button--secondary button--small"
+          href="{{ url_for('web.import_draft_review', draft_id=current_draft.id) }}"
+        >
+          ادامه ویرایش Draft
+        </a>
+      </div>
+    {% endif %}
+
+    <section class="crawl-media-section">
+      <div class="crawl-section-header crawl-section-header--media">
+        <div>
+          <div class="crawl-section-heading-row">
+            <h2 class="crawl-section-title">کدام محتواها محصول هستند؟</h2>
+            <span class="crawl-section-count">{{ crawl_session.media|length }} مورد</span>
+          </div>
+          <p class="crawl-section-description">
+            فقط پست‌ها و ریلزهایی را انتخاب کن که قرار است به محصول تبدیل شوند. تصاویر هر محصول را در «مدیریت فایل‌ها» می‌توانی جداگانه تنظیم کنی.
+          </p>
+        </div>
+      </div>
+
+      {% if crawl_session.media %}
+        {% if crawl_session.status == 'completed' %}
+          <form
+            method="post"
+            action="{{ url_for('web.create_import_draft', session_id=crawl_session.id) }}"
+            id="draft-form"
+          >
+            <div class="selection-summary">
+              <div class="selection-summary__item selection-summary__item--accent">
+                <strong id="selected-media-count">{{ selected_media_ids|length }}</strong>
+                <span>محصول انتخاب‌شده</span>
+              </div>
+
+              <div class="selection-summary__item">
+                <strong id="selected-asset-count">{{ selected_asset_ids|length }}</strong>
+                <span>فایل انتخاب‌شده</span>
+              </div>
+
+              <div class="selection-summary__item">
+                <strong>{{ crawl_session.media|length }}</strong>
+                <span>محتوای دریافت‌شده</span>
+              </div>
+            </div>
+
+            <div class="selection-grid">
+              {% for media in crawl_session.media %}
+                {% set media_is_selected = media.id in selected_media_ids %}
+                {% set asset_ns = namespace(selected=0) %}
+
+                {% for asset in media.assets %}
+                  {% if asset.id in selected_asset_ids %}
+                    {% set asset_ns.selected = asset_ns.selected + 1 %}
+                  {% endif %}
+                {% endfor %}
+
+                <article
+                  class="selection-card {% if media_is_selected %}is-selected{% else %}is-unselected{% endif %}"
+                  data-media-card="{{ media.id }}"
+                >
+                  <div class="selection-card__media">
+                    {% set preview_asset = namespace(asset=None) %}
+                    {% for asset in media.assets %}
+                      {% if preview_asset.asset is none and asset.is_available and asset.asset_type != 'video' %}
+                        {% set preview_asset.asset = asset %}
+                      {% endif %}
+                    {% endfor %}
+
+                    {% if preview_asset.asset %}
+                      <img
+                        src="{{ url_for('web.stored_instagram_asset', asset_id=preview_asset.asset.id) }}"
+                        alt="{{ media.shortcode }}"
+                        loading="lazy"
+                      />
+                    {% elif media.thumbnail_url %}
+                      <img src="{{ media.thumbnail_url }}" alt="{{ media.shortcode }}" loading="lazy" />
+                    {% else %}
+                      <div class="selection-card__placeholder">تصویر موجود نیست</div>
+                    {% endif %}
+
+                    <div class="selection-card__badges">
+                      <span class="selection-card__badge">
+                        {% if media.media_type == 'reel' %}
+                          Reel
+                        {% elif media.media_type == 'carousel' %}
+                          Carousel
+                        {% elif media.media_type == 'video' %}
+                          Video
+                        {% elif media.media_type == 'image' %}
+                          Image
+                        {% else %}
+                          {{ media.media_type }}
+                        {% endif %}
+                      </span>
+
+                      {% if media.assets|length > 1 %}
+                        <span class="selection-card__badge">{{ media.assets|length }} فایل</span>
+                      {% endif %}
+                    </div>
+                  </div>
+
+                  <div class="selection-card__body">
+                    <div class="selection-card__topline">
+                      <div class="selection-card__identity">
+                        <div class="selection-card__shortcode">{{ media.shortcode }}</div>
+
+                        {% if media.caption %}
+                          <p class="selection-card__caption">{{ media.caption }}</p>
+                        {% else %}
+                          <p class="selection-card__caption">بدون کپشن</p>
+                        {% endif %}
+                      </div>
+
+                      <label class="selection-toggle">
+                        <input
+                          type="checkbox"
+                          name="media_ids"
+                          value="{{ media.id }}"
+                          {% if media_is_selected %}checked{% endif %}
+                          data-media-checkbox="{{ media.id }}"
+                        />
+                        <span class="selection-toggle__box">✓</span>
+                        <span class="selection-toggle__label">محصول</span>
+                      </label>
+                    </div>
+
+                    <div class="selection-card__footer">
+                      <div class="selection-card__asset-summary">
+                        <strong data-card-asset-count="{{ media.id }}">{{ asset_ns.selected }} فایل انتخاب‌شده</strong>
+                        <span>تصویر اصلی در مرحله بعد انتخاب می‌شود</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        class="button button--secondary button--small asset-manage-button"
+                        data-open-assets="{{ media.id }}"
+                        {% if not media_is_selected %}disabled{% endif %}
+                      >
+                        مدیریت فایل‌ها
+                      </button>
+                    </div>
+                  </div>
+                </article>
+
+                <dialog class="asset-dialog" data-asset-dialog="{{ media.id }}">
+                  <div class="asset-dialog__shell">
+                    <div class="asset-dialog__header">
+                      <div>
+                        <h3>فایل‌های {{ media.shortcode }}</h3>
+                        <p>فایل‌هایی را نگه دار که باید همراه این محصول به مرحله بعد بروند.</p>
+                      </div>
+
+                      <button
+                        type="button"
+                        class="asset-dialog__close"
+                        data-close-assets="{{ media.id }}"
+                        aria-label="بستن"
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <div class="asset-dialog__toolbar">
+                      <span
+                        class="asset-dialog__count"
+                        data-dialog-asset-count="{{ media.id }}"
+                      >
+                        {{ asset_ns.selected }} از {{ media.assets|length }} فایل انتخاب شده
+                      </span>
+
+                      <div class="asset-dialog__toolbar-actions">
+                        <button
+                          type="button"
+                          class="button button--ghost button--small"
+                          data-select-all-assets="{{ media.id }}"
+                        >
+                          انتخاب همه
+                        </button>
+
+                        <button
+                          type="button"
+                          class="button button--ghost button--small"
+                          data-clear-assets="{{ media.id }}"
+                        >
+                          پاک کردن
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="asset-dialog__body">
+                      {% if media.assets %}
+                        <div class="asset-dialog__grid">
+                          {% for asset in media.assets %}
+                            {% set asset_is_selected = asset.id in selected_asset_ids %}
+
+                            <label
+                              class="asset-choice {% if asset_is_selected %}is-selected{% endif %}"
+                              data-asset-choice
+                            >
+                              <input
+                                type="checkbox"
+                                name="asset_ids"
+                                value="{{ asset.id }}"
+                                {% if asset_is_selected %}checked{% endif %}
+                                {% if not media_is_selected %}disabled{% endif %}
+                                data-parent-media="{{ media.id }}"
+                              />
+
+                              {% if asset.asset_type == 'video' %}
+                                <div class="asset-choice__video">▶ Video</div>
+                              {% else %}
+                                <img src="{{ url_for('web.stored_instagram_asset', asset_id=asset.id) }}" alt="" loading="lazy" />
+                              {% endif %}
+
+                              <span class="asset-choice__check">✓</span>
+                              <span class="asset-choice__type">
+                                {% if asset.asset_type == 'thumbnail' %}
+                                  Thumbnail
+                                {% elif asset.asset_type == 'video' %}
+                                  Video
+                                {% else %}
+                                  Image
+                                {% endif %}
+                              </span>
+                            </label>
+                          {% endfor %}
+                        </div>
+                      {% else %}
+                        <div class="crawl-empty">فایلی برای این محتوا ذخیره نشده است.</div>
+                      {% endif %}
+                    </div>
+
+                    <div class="asset-dialog__footer">
+                      <button
+                        type="button"
+                        class="button button--primary"
+                        data-close-assets="{{ media.id }}"
+                      >
+                        تأیید فایل‌ها
+                      </button>
+                    </div>
+                  </div>
+                </dialog>
+              {% endfor %}
+            </div>
+
+            <p class="selection-empty-warning" id="selection-empty-warning">
+              حداقل یک محتوا را به‌عنوان محصول انتخاب کن.
+            </p>
+
+            <div class="selection-stickybar">
+              <div class="selection-stickybar__inner">
+                <div class="selection-stickybar__summary">
+                  <div class="selection-stickybar__metric">
+                    <strong><span data-sticky-media-count>{{ selected_media_ids|length }}</span> محصول</strong>
+                    <span>برای مرحله بعد</span>
+                  </div>
+
+                  <div class="selection-stickybar__metric">
+                    <strong><span data-sticky-asset-count>{{ selected_asset_ids|length }}</span> فایل</strong>
+                    <span>انتخاب‌شده</span>
+                  </div>
+                </div>
+
+                <div class="selection-stickybar__actions">
+                  <button type="button" class="button button--secondary" id="clear-all-media">
+                    پاک کردن انتخاب‌ها
+                  </button>
+
+                  <button
+                    type="submit"
+                    class="button button--primary"
+                    id="create-draft-button"
+                    {% if selected_media_ids|length == 0 %}disabled{% endif %}
+                  >
+                    {% if current_draft %}
+                      به‌روزرسانی Draft و ادامه ←
+                    {% else %}
+                      ادامه به آماده‌سازی محصولات ←
+                    {% endif %}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </form>
+        {% endif %}
+      {% else %}
+        <div class="crawl-empty crawl-empty--media">
+          <div class="crawl-empty__icon">◫</div>
+          <strong>محتوایی دریافت نشده</strong>
+          <span>برای این نشست هیچ پست یا ریلزی ذخیره نشده است.</span>
+        </div>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+
+  {% if crawl_session.status == 'completed' and crawl_session.media %}
+    <script>
+      ;(() => {
+        'use strict'
+
+        const form = document.getElementById('draft-form')
+
+        if (!form) {
+          return
+        }
+
+        const mediaCheckboxes = Array.from(
+          form.querySelectorAll('[data-media-checkbox]')
+        )
+
+        const assetCheckboxes = Array.from(
+          form.querySelectorAll('[data-parent-media]')
+        )
+
+        const selectedMediaCount = document.getElementById(
+          'selected-media-count'
+        )
+
+        const selectedAssetCount = document.getElementById(
+          'selected-asset-count'
+        )
+
+        const stickyMediaCount = document.querySelector(
+          '[data-sticky-media-count]'
+        )
+
+        const stickyAssetCount = document.querySelector(
+          '[data-sticky-asset-count]'
+        )
+
+        const submitButton = document.getElementById(
+          'create-draft-button'
+        )
+
+        const clearAllMediaButton = document.getElementById(
+          'clear-all-media'
+        )
+
+        const emptyWarning = document.getElementById(
+          'selection-empty-warning'
+        )
+
+        const assetsForMedia = (mediaId) => {
+          return assetCheckboxes.filter(
+            (checkbox) => checkbox.dataset.parentMedia === mediaId
+          )
+        }
+
+        const selectedAssetsForMedia = (mediaId) => {
+          return assetsForMedia(mediaId).filter(
+            (checkbox) => checkbox.checked && !checkbox.disabled
+          )
+        }
+
+        const updateAssetChoice = (checkbox) => {
+          const choice = checkbox.closest('[data-asset-choice]')
+
+          choice?.classList.toggle(
+            'is-selected',
+            checkbox.checked && !checkbox.disabled
+          )
+        }
+
+        const updateMediaAssetSummary = (mediaId) => {
+          const assets = assetsForMedia(mediaId)
+          const selected = selectedAssetsForMedia(mediaId).length
+
+          const cardCount = document.querySelector(
+            `[data-card-asset-count="${mediaId}"]`
+          )
+
+          const dialogCount = document.querySelector(
+            `[data-dialog-asset-count="${mediaId}"]`
+          )
+
+          if (cardCount) {
+            cardCount.textContent = `${selected} فایل انتخاب‌شده`
+          }
+
+          if (dialogCount) {
+            dialogCount.textContent = `${selected} از ${assets.length} فایل انتخاب شده`
+          }
+
+          assets.forEach(updateAssetChoice)
+        }
+
+        const updateSummary = () => {
+          const selectedMedia = mediaCheckboxes.filter(
+            (checkbox) => checkbox.checked
+          ).length
+
+          const selectedAssets = assetCheckboxes.filter(
+            (checkbox) => checkbox.checked && !checkbox.disabled
+          ).length
+
+          if (selectedMediaCount) {
+            selectedMediaCount.textContent = String(selectedMedia)
+          }
+
+          if (selectedAssetCount) {
+            selectedAssetCount.textContent = String(selectedAssets)
+          }
+
+          if (stickyMediaCount) {
+            stickyMediaCount.textContent = String(selectedMedia)
+          }
+
+          if (stickyAssetCount) {
+            stickyAssetCount.textContent = String(selectedAssets)
+          }
+
+          if (submitButton) {
+            submitButton.disabled = selectedMedia === 0
+          }
+
+          emptyWarning?.classList.toggle(
+            'is-visible',
+            selectedMedia === 0
+          )
+
+          mediaCheckboxes.forEach((checkbox) => {
+            const mediaId = checkbox.dataset.mediaCheckbox
+            const card = document.querySelector(
+              `[data-media-card="${mediaId}"]`
+            )
+
+            const manageButton = document.querySelector(
+              `[data-open-assets="${mediaId}"]`
+            )
+
+            card?.classList.toggle(
+              'is-selected',
+              checkbox.checked
+            )
+
+            card?.classList.toggle(
+              'is-unselected',
+              !checkbox.checked
+            )
+
+            if (manageButton instanceof HTMLButtonElement) {
+              manageButton.disabled = !checkbox.checked
+            }
+
+            updateMediaAssetSummary(mediaId)
+          })
+        }
+
+        const setMediaEnabled = (mediaCheckbox) => {
+          const mediaId = mediaCheckbox.dataset.mediaCheckbox
+          const assets = assetsForMedia(mediaId)
+
+          if (!mediaCheckbox.checked) {
+            assets.forEach((assetCheckbox) => {
+              assetCheckbox.disabled = true
+            })
+
+            return
+          }
+
+          assets.forEach((assetCheckbox) => {
+            assetCheckbox.disabled = false
+          })
+
+          const hasSelectedAsset = assets.some(
+            (assetCheckbox) => assetCheckbox.checked
+          )
+
+          if (!hasSelectedAsset) {
+            assets.forEach((assetCheckbox) => {
+              assetCheckbox.checked = true
+            })
+          }
+        }
+
+        mediaCheckboxes.forEach((mediaCheckbox) => {
+          mediaCheckbox.addEventListener('change', () => {
+            setMediaEnabled(mediaCheckbox)
+            updateSummary()
+          })
+        })
+
+        assetCheckboxes.forEach((assetCheckbox) => {
+          assetCheckbox.addEventListener('change', () => {
+            updateMediaAssetSummary(
+              assetCheckbox.dataset.parentMedia
+            )
+            updateSummary()
+          })
+        })
+
+        document.querySelectorAll('[data-open-assets]').forEach(
+          (button) => {
+            button.addEventListener('click', () => {
+              const mediaId = button.dataset.openAssets
+              const dialog = document.querySelector(
+                `[data-asset-dialog="${mediaId}"]`
+              )
+
+              if (dialog instanceof HTMLDialogElement) {
+                dialog.showModal()
+              }
+            })
+          }
+        )
+
+        document.querySelectorAll('[data-close-assets]').forEach(
+          (button) => {
+            button.addEventListener('click', () => {
+              const mediaId = button.dataset.closeAssets
+              const dialog = document.querySelector(
+                `[data-asset-dialog="${mediaId}"]`
+              )
+
+              if (dialog instanceof HTMLDialogElement) {
+                dialog.close()
+              }
+            })
+          }
+        )
+
+        document.querySelectorAll('[data-asset-dialog]').forEach(
+          (dialog) => {
+            dialog.addEventListener('click', (event) => {
+              if (event.target === dialog) {
+                dialog.close()
+              }
+            })
+          }
+        )
+
+        document.querySelectorAll('[data-select-all-assets]').forEach(
+          (button) => {
+            button.addEventListener('click', () => {
+              const mediaId = button.dataset.selectAllAssets
+
+              assetsForMedia(mediaId).forEach(
+                (assetCheckbox) => {
+                  if (!assetCheckbox.disabled) {
+                    assetCheckbox.checked = true
+                  }
+                }
+              )
+
+              updateMediaAssetSummary(mediaId)
+              updateSummary()
+            })
+          }
+        )
+
+        document.querySelectorAll('[data-clear-assets]').forEach(
+          (button) => {
+            button.addEventListener('click', () => {
+              const mediaId = button.dataset.clearAssets
+
+              assetsForMedia(mediaId).forEach(
+                (assetCheckbox) => {
+                  if (!assetCheckbox.disabled) {
+                    assetCheckbox.checked = false
+                  }
+                }
+              )
+
+              updateMediaAssetSummary(mediaId)
+              updateSummary()
+            })
+          }
+        )
+
+        clearAllMediaButton?.addEventListener('click', () => {
+          mediaCheckboxes.forEach((mediaCheckbox) => {
+            mediaCheckbox.checked = false
+            setMediaEnabled(mediaCheckbox)
+          })
+
+          updateSummary()
+        })
+
+        form.addEventListener('submit', (event) => {
+          const selectedMedia = mediaCheckboxes.some(
+            (checkbox) => checkbox.checked
+          )
+
+          if (!selectedMedia) {
+            event.preventDefault()
+            emptyWarning?.classList.add('is-visible')
+          }
+        })
+
+        mediaCheckboxes.forEach(setMediaEnabled)
+        updateSummary()
+      })()
+    </script>
+  {% endif %}
 {% endblock %}

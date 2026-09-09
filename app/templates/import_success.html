@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  ایمپورت تکمیل شد | Selora Importer
+{% endblock %}
+
+{% block head %}
+  {{ super() }}
+  <style>
+    .import-success {
+      display: grid;
+      min-height: 65vh;
+      place-items: center;
+      padding: 36px 0 60px;
+    }
+    
+    .import-success__card {
+      width: min(680px, 100%);
+      padding: 34px;
+      border: 1px solid #d1fae5;
+      border-radius: 24px;
+      background: #fff;
+      box-shadow: 0 20px 60px rgba(17, 24, 39, 0.08);
+      text-align: center;
+    }
+    
+    .import-success__icon {
+      display: grid;
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 18px;
+      place-items: center;
+      border-radius: 50%;
+      background: #ecfdf5;
+      color: #047857;
+      font-size: 34px;
+      font-weight: 900;
+    }
+    
+    .import-success__eyebrow {
+      display: inline-block;
+      margin-bottom: 8px;
+      color: #059669;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      direction: ltr;
+    }
+    
+    .import-success__title {
+      margin: 0 0 10px;
+      color: #111827;
+      font-size: 28px;
+      line-height: 1.5;
+    }
+    
+    .import-success__description {
+      margin: 0 auto;
+      max-width: 520px;
+      color: #6b7280;
+      font-size: 14px;
+      line-height: 2;
+    }
+    
+    .import-success__notice {
+      margin: 22px 0;
+      padding: 13px 15px;
+      border-radius: 14px;
+      background: #f9fafb;
+      color: #4b5563;
+      font-size: 12px;
+      line-height: 1.9;
+    }
+    
+    .import-success__details {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 22px 0;
+      text-align: right;
+    }
+    
+    .import-success__detail {
+      min-width: 0;
+      padding: 14px;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      background: #fafafa;
+    }
+    
+    .import-success__detail span {
+      display: block;
+      margin-bottom: 5px;
+      color: #9ca3af;
+      font-size: 10px;
+    }
+    
+    .import-success__detail strong {
+      display: block;
+      overflow: hidden;
+      color: #111827;
+      font-size: 12px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .import-success__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 24px;
+    }
+    
+    @media (max-width: 680px) {
+      .import-success__details {
+        grid-template-columns: 1fr;
+      }
+    
+      .import-success__actions {
+        align-items: stretch;
+        flex-direction: column;
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block breadcrumb %}
+  <nav class="page-breadcrumb" aria-label="مسیر صفحه">
+    <a href="{{ url_for('web.crawl_list') }}">نشست‌ها</a>
+    <span class="page-breadcrumb__separator">/</span>
+    <span class="page-breadcrumb__current">ایمپورت تکمیل شد</span>
+  </nav>
+{% endblock %}
+
+{% block content %}
+  {% set effective_operation = operation|default('unchanged' if replayed else 'created') %}
+
+  <section class="import-success">
+    <div class="import-success__card">
+      <div class="import-success__icon">✓</div>
+
+      <span class="import-success__eyebrow">IMPORT COMPLETED</span>
+
+      <h1 class="import-success__title">
+        {% if effective_operation == 'updated' %}
+          Workspace سلورا با موفقیت به‌روزرسانی شد
+        {% elif effective_operation == 'unchanged' %}
+          اطلاعات Workspace بدون تغییر بود
+        {% else %}
+          Workspace با موفقیت در سلورا ساخته شد
+        {% endif %}
+      </h1>
+
+      <p class="import-success__description">
+        {% if effective_operation == 'updated' %}
+          تغییرات این Draft روی همان staging قبلی اعمال شد و رکورد تکراری ساخته نشد.
+        {% elif effective_operation == 'unchanged' %}
+          سلورا تشخیص داد snapshot فعلی با نسخه ثبت‌شده یکسان است؛ بنابراین mutation جدیدی انجام نشد.
+        {% else %}
+          اطلاعات انتخاب‌شده با موفقیت در staging سلورا ثبت شدند و آماده‌ی مراحل بعدی هستند.
+        {% endif %}
+      </p>
+
+      <div class="import-success__notice">هنوز Product نهایی ساخته نشده است. این مرحله فقط انتقال امن داده‌ها به staging سلورا را تکمیل کرده است.</div>
+
+      <div class="import-success__details">
+        <div class="import-success__detail">
+          <span>عملیات</span>
+          <strong dir="ltr">{{ effective_operation }}</strong>
+        </div>
+
+        <div class="import-success__detail">
+          <span>تعداد محصول</span>
+          <strong>{{ draft_count }}</strong>
+        </div>
+
+        <div class="import-success__detail">
+          <span>Selora Session</span>
+          <strong dir="ltr">{{ session_id or '-' }}</strong>
+        </div>
+
+        <div class="import-success__detail">
+          <span>Request ID</span>
+          <strong dir="ltr">{{ request_id or '-' }}</strong>
+        </div>
+      </div>
+
+      <div class="import-success__actions">
+        <a class="button button--primary" href="{{ url_for('web.index') }}">شروع ایمپورت جدید</a>
+
+        <a class="button button--secondary" href="{{ url_for('web.crawl_list') }}">مشاهده نشست‌ها</a>
+
+        <a class="button button--ghost" href="{{ url_for('web.crawl_detail', session_id=draft.crawl_session_id) }}">مشاهده کراول قبلی</a>
+      </div>
+    </div>
+  </section>
+{% endblock %}
