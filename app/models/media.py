@@ -284,18 +284,18 @@ class InstagramAsset(db.Model):
         nullable=False,
     )
 
-    local_cache_path: Mapped[str | None] = mapped_column(
+    local_file_path: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
 
-    local_cache_status: Mapped[str] = mapped_column(
+    local_file_status: Mapped[str] = mapped_column(
         String(32),
         nullable=False,
         default="missing",
     )
 
-    local_cached_at: Mapped[datetime | None] = mapped_column(
+    local_saved_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )
@@ -315,7 +315,7 @@ class InstagramAsset(db.Model):
         nullable=True,
     )
 
-    local_cache_error: Mapped[str | None] = mapped_column(
+    local_file_error: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )

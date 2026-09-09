@@ -42,8 +42,8 @@ from app.services.remote_workspace_coordinator import (
 from app.services.import_validation_service import (
     ImportDraftValidationService,
 )
-from app.services.media_cache_service import (
-    InstagramMediaCacheService,
+from app.services.media_storage_service import (
+    InstagramMediaStorageService,
 )
 
 logger = logging.getLogger("app")
@@ -256,8 +256,8 @@ def crawl_list() -> str:
     return render_template("crawl_list.html", sessions=sessions)
 
 
-@web_bp.get("/media-cache/assets/<asset_id>")
-def cached_instagram_asset(
+@web_bp.get("/media/assets/<asset_id>")
+def stored_instagram_asset(
     asset_id: str,
 ) -> ResponseReturnValue:
     asset = db.session.get(
@@ -268,29 +268,29 @@ def cached_instagram_asset(
     if asset is None:
         abort(404)
 
-    cache_service = InstagramMediaCacheService(
+    storage_service = InstagramMediaStorageService(
         root_path=current_app.config[
-            "INSTAGRAM_MEDIA_CACHE_DIR"
+            "INSTAGRAM_MEDIA_STORAGE_DIR"
         ],
         timeout_seconds=current_app.config[
-            "INSTAGRAM_MEDIA_CACHE_TIMEOUT_SECONDS"
+            "INSTAGRAM_MEDIA_STORAGE_TIMEOUT_SECONDS"
         ],
         max_bytes=current_app.config[
-            "INSTAGRAM_MEDIA_CACHE_MAX_BYTES"
+            "INSTAGRAM_MEDIA_STORAGE_MAX_BYTES"
         ],
     )
 
-    cache_path = cache_service.resolve_cache_path(
+    file_path = storage_service.resolve_file_path(
         asset=asset,
     )
 
     if (
-        cache_path is not None
-        and cache_path.is_file()
-        and cache_path.stat().st_size > 0
+        file_path is not None
+        and file_path.is_file()
+        and file_path.stat().st_size > 0
     ):
         return send_file(
-            cache_path,
+            file_path,
             mimetype=(
                 asset.local_content_type
                 or None

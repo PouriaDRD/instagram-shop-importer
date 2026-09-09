@@ -247,28 +247,28 @@ class Config:
     )
 
     # ========================================================
-    # Local Instagram media cache
+    # Persistent local Instagram media storage
     # ========================================================
 
-    INSTAGRAM_MEDIA_CACHE_ENABLED: bool = get_env_bool(
-        "INSTAGRAM_MEDIA_CACHE_ENABLED",
+    INSTAGRAM_MEDIA_STORAGE_ENABLED: bool = get_env_bool(
+        "INSTAGRAM_MEDIA_STORAGE_ENABLED",
         default=True,
     )
 
-    INSTAGRAM_MEDIA_CACHE_DIR: str = get_env_str(
-        "INSTAGRAM_MEDIA_CACHE_DIR",
-        default="instance/media_cache/instagram",
+    INSTAGRAM_MEDIA_STORAGE_DIR: str = get_env_str(
+        "INSTAGRAM_MEDIA_STORAGE_DIR",
+        default="instance/media/instagram",
     )
 
-    INSTAGRAM_MEDIA_CACHE_TIMEOUT_SECONDS: int = get_env_int(
-        "INSTAGRAM_MEDIA_CACHE_TIMEOUT_SECONDS",
+    INSTAGRAM_MEDIA_STORAGE_TIMEOUT_SECONDS: int = get_env_int(
+        "INSTAGRAM_MEDIA_STORAGE_TIMEOUT_SECONDS",
         default=30,
         minimum=1,
         maximum=300,
     )
 
-    INSTAGRAM_MEDIA_CACHE_MAX_BYTES: int = get_env_int(
-        "INSTAGRAM_MEDIA_CACHE_MAX_BYTES",
+    INSTAGRAM_MEDIA_STORAGE_MAX_BYTES: int = get_env_int(
+        "INSTAGRAM_MEDIA_STORAGE_MAX_BYTES",
         default=262_144_000,
         minimum=1_048_576,
         maximum=2_147_483_647,
