@@ -6,8 +6,8 @@ from types import SimpleNamespace
 from unittest.mock import patch
 import uuid
 
-from app.services.media_cache_service import (
-    InstagramMediaCacheService,
+from app.services.media_storage_service import (
+    InstagramMediaStorageService,
 )
 
 
@@ -64,20 +64,20 @@ def _asset() -> SimpleNamespace:
             "https://instagram.example/"
             "temporary-image.jpg"
         ),
-        local_cache_path=None,
-        local_cache_status="missing",
-        local_cached_at=None,
+        local_file_path=None,
+        local_file_status="missing",
+        local_saved_at=None,
         local_content_type=None,
         local_file_size=None,
         local_sha256=None,
-        local_cache_error=None,
+        local_file_error=None,
     )
 
 
-def test_cache_asset_downloads_and_records_metadata(
+def test_persist_asset_downloads_and_records_metadata(
     tmp_path: Path,
 ) -> None:
-    service = InstagramMediaCacheService(
+    service = InstagramMediaStorageService(
         root_path=str(tmp_path),
         timeout_seconds=5,
         max_bytes=1024 * 1024,
@@ -86,36 +86,36 @@ def test_cache_asset_downloads_and_records_metadata(
     body = b"fake-jpeg-content"
 
     with patch(
-        "app.services.media_cache_service.urlopen",
+        "app.services.media_storage_service.urlopen",
         return_value=FakeResponse(
             body=body,
             content_type="image/jpeg",
         ),
     ):
-        service._cache_asset(
+        service._persist_asset(
             asset=asset,
             username="shop",
             shortcode="ABC123",
         )
 
-    assert asset.local_cache_status == "ready"
-    assert asset.local_cache_path
+    assert asset.local_file_status == "ready"
+    assert asset.local_file_path
     assert asset.local_content_type == "image/jpeg"
     assert asset.local_file_size == len(body)
     assert len(asset.local_sha256) == 64
 
-    cached_path = (
+    storaged_path = (
         tmp_path
-        / asset.local_cache_path
+        / asset.local_file_path
     )
 
-    assert cached_path.read_bytes() == body
+    assert storaged_path.read_bytes() == body
 
 
-def test_existing_cache_is_reused_even_if_source_url_changes(
+def test_existing_storage_is_reused_even_if_source_url_changes(
     tmp_path: Path,
 ) -> None:
-    service = InstagramMediaCacheService(
+    service = InstagramMediaStorageService(
         root_path=str(tmp_path),
         timeout_seconds=5,
         max_bytes=1024 * 1024,
@@ -133,10 +133,10 @@ def test_existing_cache_is_reused_even_if_source_url_changes(
         exist_ok=True,
     )
     existing.write_bytes(
-        b"existing-cache"
+        b"existing-storage"
     )
 
-    asset.local_cache_path = (
+    asset.local_file_path = (
         existing.relative_to(
             tmp_path
         ).as_posix()
@@ -146,6 +146,6 @@ def test_existing_cache_is_reused_even_if_source_url_changes(
         "rotated-cdn-url.jpg"
     )
 
-    assert service._has_valid_cache(
+    assert service._has_persisted_file(
         asset=asset
     )

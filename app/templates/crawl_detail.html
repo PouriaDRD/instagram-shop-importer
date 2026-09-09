@@ -664,7 +664,7 @@
 
                     {% if preview_asset.asset %}
                       <img
-                        src="{{ url_for('web.cached_instagram_asset', asset_id=preview_asset.asset.id) }}"
+                        src="{{ url_for('web.stored_instagram_asset', asset_id=preview_asset.asset.id) }}"
                         alt="{{ media.shortcode }}"
                         loading="lazy"
                       />
@@ -805,7 +805,7 @@
                               {% if asset.asset_type == 'video' %}
                                 <div class="asset-choice__video">▶ Video</div>
                               {% else %}
-                                <img src="{{ url_for('web.cached_instagram_asset', asset_id=asset.id) }}" alt="" loading="lazy" />
+                                <img src="{{ url_for('web.stored_instagram_asset', asset_id=asset.id) }}" alt="" loading="lazy" />
                               {% endif %}
 
                               <span class="asset-choice__check">✓</span>

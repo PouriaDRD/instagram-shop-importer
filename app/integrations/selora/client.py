@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Mapping
 from uuid import uuid4
 
@@ -56,6 +57,16 @@ class SeloraImportResult:
     media_count: int
     draft_count: int
     workspace: SeloraWorkspaceState
+    request_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class SeloraAssetUploadResult:
+    asset_id: str
+    operation: str
+    file_name: str
+    sha256: str
+    size_bytes: int
     request_id: str
 
 
@@ -369,6 +380,115 @@ class SeloraApiClient:
             media_count=media_count,
             draft_count=draft_count,
             workspace=workspace,
+            request_id=response_request_id,
+        )
+
+    def upload_workspace_asset(
+        self,
+        *,
+        workspace_id: str,
+        client_workspace_id: str,
+        client_instance_id: str,
+        lock_token: str,
+        expected_revision: int,
+        instagram_media_id: str,
+        asset_type: str,
+        position: int,
+        sha256: str,
+        file_path: Path,
+        content_type: str | None,
+        request_id: str | None = None,
+    ) -> SeloraAssetUploadResult:
+        if not file_path.is_file():
+            raise SeloraApiError(
+                f"فایل cache محلی برای ارسال پیدا نشد: {file_path}"
+            )
+
+        effective_request_id = (
+            request_id.strip()
+            if request_id is not None and request_id.strip()
+            else str(uuid4())
+        )
+        path = (
+            "/instagram-importer/api/v1/imports/"
+            f"workspaces/{workspace_id}/assets/upload/"
+        )
+        data = {
+            "client_workspace_id": client_workspace_id,
+            "client_instance_id": client_instance_id,
+            "lock_token": lock_token,
+            "expected_revision": str(expected_revision),
+            "instagram_media_id": instagram_media_id,
+            "asset_type": asset_type,
+            "position": str(position),
+            "sha256": sha256,
+        }
+        headers = {
+            "X-API-Key": self._api_key,
+            "X-Request-ID": effective_request_id,
+            "Accept": "application/json",
+        }
+
+        try:
+            with file_path.open("rb") as file_handle:
+                response = self._http.post(
+                    f"{self._base_url}{path}",
+                    data=data,
+                    files={
+                        "file": (
+                            file_path.name,
+                            file_handle,
+                            content_type or "application/octet-stream",
+                        )
+                    },
+                    headers=headers,
+                    timeout=self._timeout,
+                )
+        except requests.RequestException as exc:
+            raise SeloraApiNetworkError(
+                "ارسال فایل به API سلورا با خطای شبکه مواجه شد."
+            ) from exc
+
+        response_request_id = (
+            response.headers.get("X-Request-ID", "").strip()
+            or effective_request_id
+        )
+        body = self._read_json_object(response=response)
+
+        if response.status_code not in {200, 201}:
+            error = body.get("error")
+            code = "selora_api_error"
+            message = "ارسال فایل به سلورا ناموفق بود."
+            if isinstance(error, dict):
+                raw_code = error.get("code")
+                raw_message = error.get("message")
+                if isinstance(raw_code, str) and raw_code.strip():
+                    code = raw_code.strip()
+                if isinstance(raw_message, str) and raw_message.strip():
+                    message = raw_message.strip()
+            raise SeloraApiResponseError(
+                status_code=response.status_code,
+                code=code,
+                message=message,
+                request_id=response_request_id,
+            )
+
+        operation = body.get("operation")
+        if not isinstance(operation, str) or operation not in {
+            "uploaded", "updated", "unchanged"
+        }:
+            raise self._invalid_success(request_id=response_request_id)
+
+        asset = body.get("asset")
+        if not isinstance(asset, dict):
+            raise self._invalid_success(request_id=response_request_id)
+
+        return SeloraAssetUploadResult(
+            asset_id=self._required_str(asset, "id", request_id=response_request_id),
+            operation=operation,
+            file_name=self._required_str(asset, "file_name", request_id=response_request_id),
+            sha256=self._required_str(asset, "sha256", request_id=response_request_id),
+            size_bytes=self._required_int(asset, "size_bytes", request_id=response_request_id),
             request_id=response_request_id,
         )
 

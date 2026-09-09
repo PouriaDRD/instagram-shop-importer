@@ -16,22 +16,22 @@ from app.models import InstagramAsset, InstagramMedia, InstagramSource
 
 
 @dataclass(frozen=True, slots=True)
-class MediaCacheResult:
-    cached: int
+class MediaStorageResult:
+    saved: int
     reused: int
     failed: int
 
 
-class MediaCacheError(RuntimeError):
+class MediaStorageError(RuntimeError):
     pass
 
 
-class InstagramMediaCacheService:
+class InstagramMediaStorageService:
     """
-    Disposable local cache for Instagram CDN assets.
+    Disposable persistent local storage for Instagram CDN assets.
 
     The cache is an operator convenience layer only. It is not Selora's
-    canonical media storage. A valid existing cache file is deliberately
+    canonical media storage. A valid existing stored file is deliberately
     reused when Instagram rotates/refreshes the CDN URL.
     """
 
@@ -48,11 +48,11 @@ class InstagramMediaCacheService:
         self._timeout_seconds = timeout_seconds
         self._max_bytes = max_bytes
 
-    def cache_source(
+    def persist_source(
         self,
         *,
         source: InstagramSource,
-    ) -> MediaCacheResult:
+    ) -> MediaStorageResult:
         assets = tuple(
             db.session.scalars(
                 select(InstagramAsset)
@@ -74,7 +74,7 @@ class InstagramMediaCacheService:
             ).all()
         )
 
-        cached = 0
+        saved = 0
         reused = 0
         failed = 0
 
@@ -82,39 +82,39 @@ class InstagramMediaCacheService:
             media = asset.media
 
             try:
-                if self._has_valid_cache(asset=asset):
-                    asset.local_cache_status = "ready"
-                    asset.local_cache_error = None
+                if self._has_persisted_file(asset=asset):
+                    asset.local_file_status = "ready"
+                    asset.local_file_error = None
                     reused += 1
                     continue
 
-                self._cache_asset(
+                self._persist_asset(
                     asset=asset,
                     username=source.username,
                     shortcode=media.shortcode,
                 )
-                cached += 1
+                saved += 1
 
             except Exception as exc:
-                asset.local_cache_status = "failed"
-                asset.local_cache_error = str(exc).strip()[:2000]
+                asset.local_file_status = "failed"
+                asset.local_file_error = str(exc).strip()[:2000]
                 failed += 1
 
         db.session.commit()
 
-        return MediaCacheResult(
-            cached=cached,
+        return MediaStorageResult(
+            saved=saved,
             reused=reused,
             failed=failed,
         )
 
-    def resolve_cache_path(
+    def resolve_file_path(
         self,
         *,
         asset: InstagramAsset,
     ) -> Path | None:
         raw_path = (
-            asset.local_cache_path or ""
+            asset.local_file_path or ""
         ).strip()
 
         if not raw_path:
@@ -134,12 +134,12 @@ class InstagramMediaCacheService:
 
         return candidate
 
-    def _has_valid_cache(
+    def _has_persisted_file(
         self,
         *,
         asset: InstagramAsset,
     ) -> bool:
-        path = self.resolve_cache_path(
+        path = self.resolve_file_path(
             asset=asset
         )
 
@@ -154,7 +154,7 @@ class InstagramMediaCacheService:
         except OSError:
             return False
 
-    def _cache_asset(
+    def _persist_asset(
         self,
         *,
         asset: InstagramAsset,
@@ -164,7 +164,7 @@ class InstagramMediaCacheService:
         source_url = asset.source_url.strip()
 
         if not source_url:
-            raise MediaCacheError(
+            raise MediaStorageError(
                 "Instagram asset has no source URL."
             )
 
@@ -211,10 +211,10 @@ class InstagramMediaCacheService:
                     announced_size
                     > self._max_bytes
                 ):
-                    raise MediaCacheError(
+                    raise MediaStorageError(
                         (
                             "Instagram asset exceeds "
-                            "local cache size limit."
+                            "persistent local storage size limit."
                         )
                     )
 
@@ -260,10 +260,10 @@ class InstagramMediaCacheService:
                         file_size += len(chunk)
 
                         if file_size > self._max_bytes:
-                            raise MediaCacheError(
+                            raise MediaStorageError(
                                 (
                                     "Instagram asset exceeds "
-                                    "local cache size limit."
+                                    "persistent local storage size limit."
                                 )
                             )
 
@@ -271,7 +271,7 @@ class InstagramMediaCacheService:
                         output.write(chunk)
 
                 if file_size <= 0:
-                    raise MediaCacheError(
+                    raise MediaStorageError(
                         "Instagram asset download was empty."
                     )
 
@@ -287,11 +287,11 @@ class InstagramMediaCacheService:
                     except OSError:
                         pass
 
-        asset.local_cache_path = (
+        asset.local_file_path = (
             relative_path.as_posix()
         )
-        asset.local_cache_status = "ready"
-        asset.local_cached_at = datetime.now(
+        asset.local_file_status = "ready"
+        asset.local_saved_at = datetime.now(
             timezone.utc
         )
         asset.local_content_type = (
@@ -299,7 +299,7 @@ class InstagramMediaCacheService:
         )
         asset.local_file_size = file_size
         asset.local_sha256 = digest.hexdigest()
-        asset.local_cache_error = None
+        asset.local_file_error = None
 
     @staticmethod
     def _safe_segment(

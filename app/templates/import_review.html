@@ -600,7 +600,7 @@
               >
                 <span class="product-nav-item__thumb">
                   {% if primary.asset and primary.asset.asset.asset_type != 'video' %}
-                    <img src="{{ url_for('web.cached_instagram_asset', asset_id=primary.asset.asset.id) }}" alt="" loading="lazy" />
+                    <img src="{{ url_for('web.stored_instagram_asset', asset_id=primary.asset.asset.id) }}" alt="" loading="lazy" />
                   {% elif item.media.thumbnail_url %}
                     <img src="{{ item.media.thumbnail_url }}" alt="" loading="lazy" />
                   {% else %}
@@ -667,7 +667,7 @@
                     {% endfor %}
 
                     {% if primary.asset and primary.asset.asset.asset_type != 'video' %}
-                      <img src="{{ url_for('web.cached_instagram_asset', asset_id=primary.asset.asset.id) }}" alt="" loading="lazy" />
+                      <img src="{{ url_for('web.stored_instagram_asset', asset_id=primary.asset.asset.id) }}" alt="" loading="lazy" />
                     {% elif item.media.thumbnail_url %}
                       <img src="{{ item.media.thumbnail_url }}" alt="" loading="lazy" />
                     {% else %}
@@ -685,13 +685,13 @@
                             value="{{ selected_asset.id }}"
                             {% if selected_asset.is_primary %}checked{% endif %}
                             data-primary-asset="{{ item.id }}"
-                            data-preview-url="{% if selected_asset.asset.asset_type != 'video' %}{{ url_for('web.cached_instagram_asset', asset_id=selected_asset.asset.id) }}{% endif %}"
+                            data-preview-url="{% if selected_asset.asset.asset_type != 'video' %}{{ url_for('web.stored_instagram_asset', asset_id=selected_asset.asset.id) }}{% endif %}"
                           />
 
                           {% if selected_asset.asset.asset_type == 'video' %}
                             <div class="product-editor-asset__video">▶</div>
                           {% else %}
-                            <img src="{{ url_for('web.cached_instagram_asset', asset_id=selected_asset.asset.id) }}" alt="" loading="lazy" />
+                            <img src="{{ url_for('web.stored_instagram_asset', asset_id=selected_asset.asset.id) }}" alt="" loading="lazy" />
                           {% endif %}
 
                           <span>اصلی</span>

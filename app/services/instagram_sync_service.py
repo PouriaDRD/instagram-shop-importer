@@ -6,8 +6,8 @@ from app.config import Config
 from app.crawler.base import InstagramProvider
 from app.models import InstagramSource
 from app.repositories import InstagramSourceRepository
-from app.services.media_cache_service import (
-    InstagramMediaCacheService,
+from app.services.media_storage_service import (
+    InstagramMediaStorageService,
 )
 
 logger = logging.getLogger("crawler")
@@ -28,14 +28,14 @@ class InstagramSyncService:
         *,
         provider: InstagramProvider,
         repository: InstagramSourceRepository,
-        media_cache_service: (
-            InstagramMediaCacheService | None
+        media_storage_service: (
+            InstagramMediaStorageService | None
         ) = None,
     ) -> None:
         self._provider = provider
         self._repository = repository
-        self._media_cache_service = (
-            media_cache_service
+        self._media_storage_service = (
+            media_storage_service
         )
 
     def get_or_create_source(
@@ -130,7 +130,7 @@ class InstagramSyncService:
                 full_sync=(max_items is None),
             )
 
-            self._cache_media_safely(
+            self._persist_media_files_safely(
                 source=source,
             )
 
@@ -186,12 +186,12 @@ class InstagramSyncService:
             media_items=media_items,
         )
 
-    def _cache_media_safely(
+    def _persist_media_files_safely(
         self,
         *,
         source: InstagramSource,
     ) -> None:
-        if not Config.INSTAGRAM_MEDIA_CACHE_ENABLED:
+        if not Config.INSTAGRAM_MEDIA_STORAGE_ENABLED:
             return
 
         # Existing fake/subclass repository tests retain their historical
@@ -199,29 +199,29 @@ class InstagramSyncService:
         if (
             type(self._repository)
             is not InstagramSourceRepository
-            and self._media_cache_service
+            and self._media_storage_service
             is None
         ):
             return
 
         service = (
-            self._media_cache_service
-            or InstagramMediaCacheService(
+            self._media_storage_service
+            or InstagramMediaStorageService(
                 root_path=(
-                    Config.INSTAGRAM_MEDIA_CACHE_DIR
+                    Config.INSTAGRAM_MEDIA_STORAGE_DIR
                 ),
                 timeout_seconds=(
                     Config
-                    .INSTAGRAM_MEDIA_CACHE_TIMEOUT_SECONDS
+                    .INSTAGRAM_MEDIA_STORAGE_TIMEOUT_SECONDS
                 ),
                 max_bytes=(
-                    Config.INSTAGRAM_MEDIA_CACHE_MAX_BYTES
+                    Config.INSTAGRAM_MEDIA_STORAGE_MAX_BYTES
                 ),
             )
         )
 
         try:
-            result = service.cache_source(
+            result = service.persist_source(
                 source=source,
             )
 
@@ -231,7 +231,7 @@ class InstagramSyncService:
             # crawl.
             logger.exception(
                 (
-                    "Local Instagram media cache "
+                    "Persistent local Instagram media storage "
                     "failed for @%s"
                 ),
                 source.username,
@@ -240,11 +240,11 @@ class InstagramSyncService:
 
         logger.info(
             (
-                "Local Instagram media cache for @%s: "
+                "Persistent local Instagram media storage for @%s: "
                 "%s cached, %s reused, %s failed"
             ),
             source.username,
-            result.cached,
+            result.saved,
             result.reused,
             result.failed,
         )
