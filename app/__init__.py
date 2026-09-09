@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import logging
 import os
+import sys
 import time
+import logging
 from pathlib import Path
 
 from flask import (
@@ -37,9 +38,21 @@ def create_app() -> Flask:
 
     app_dir = Path(__file__).resolve().parent
 
+    if getattr(sys, "frozen", False):
+        runtime_root = Path(sys.executable).resolve().parent
+        instance_path = runtime_root / "instance"
+    else:
+        instance_path = Path(__file__).resolve().parent.parent / "instance"
+
+    instance_path.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
     app = Flask(
         __name__,
         instance_relative_config=True,
+        instance_path=str(instance_path),
         static_folder=str(app_dir / "static"),
         static_url_path="/static",
         template_folder=str(app_dir / "templates"),

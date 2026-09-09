@@ -9,6 +9,7 @@ from collections.abc import (
 )
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Final
 from urllib.parse import urlparse
 
@@ -235,8 +236,22 @@ class PlaywrightInstagramProvider:
         try:
             playwright = sync_playwright().start()
 
+            browser_executable = self._resolve_browser_executable()
+
+            launch_options: dict[str, Any] = {
+                "headless": self._headless,
+            }
+
+            if browser_executable is not None:
+                launch_options["executable_path"] = str(browser_executable)
+
+                logger.info(
+                    "Using installed browser: %s",
+                    browser_executable,
+                )
+
             browser = playwright.chromium.launch(
-                headless=self._headless,
+                **launch_options,
             )
 
             context = browser.new_context(
@@ -297,7 +312,48 @@ class PlaywrightInstagramProvider:
                 playwright=playwright,
             )
 
-    @classmethod
+    @staticmethod
+    def _resolve_browser_executable() -> Path | None:
+        """
+        Resolve a locally installed Chromium-compatible browser.
+
+        Resolution order:
+        1. Explicit PLAYWRIGHT_BROWSER_EXECUTABLE configuration.
+        2. Google Chrome installed on Windows.
+        3. Microsoft Edge installed on Windows.
+        4. None -> Playwright uses its managed Chromium installation.
+
+        This keeps development behavior compatible while allowing the
+        packaged Windows application to work without downloading the
+        Playwright Chromium bundle.
+        """
+
+        configured = Config.PLAYWRIGHT_BROWSER_EXECUTABLE.strip()
+
+        if configured:
+            configured_path = Path(configured).expanduser()
+
+            if configured_path.is_file():
+                return configured_path
+
+            logger.warning(
+                "Configured browser executable does not exist: %s",
+                configured_path,
+            )
+
+        candidates = (
+            Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+            Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
+            Path(r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
+            Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+        )
+
+        for candidate in candidates:
+            if candidate.is_file():
+                return candidate
+
+        return None
+
     def _cleanup_browser_resources(
         cls,
         *,

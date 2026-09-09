@@ -246,6 +246,11 @@ class Config:
         minimum=1_000,
     )
 
+    PLAYWRIGHT_BROWSER_EXECUTABLE: str = get_env_str(
+        "PLAYWRIGHT_BROWSER_EXECUTABLE",
+        default="",
+    )
+
     # ========================================================
     # Persistent local Instagram media storage
     # ========================================================
