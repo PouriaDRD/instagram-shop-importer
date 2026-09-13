@@ -422,6 +422,56 @@
       }
     }
 
+  
+    .send-progress {
+      width: 100%;
+      margin-top: 18px;
+    }
+
+    .send-progress__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      color: #374151;
+      font-size: 12px;
+    }
+
+    .send-progress__track {
+      overflow: hidden;
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: #e5e7eb;
+    }
+
+    .send-progress__bar {
+      height: 100%;
+      border-radius: inherit;
+      background: #4f46e5;
+      transition: width 220ms ease;
+    }
+
+    .send-progress__stats {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      margin-top: 10px;
+      color: #6b7280;
+      font-size: 11px;
+    }
+
+    .send-progress__resume {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border: 1px solid #c7d2fe;
+      border-radius: 10px;
+      background: #eef2ff;
+      color: #4338ca;
+      font-size: 11px;
+      line-height: 1.8;
+    }
+
   </style>
 {% endblock %}
 
@@ -675,13 +725,71 @@
   <div class="send-overlay" id="send-overlay" aria-hidden="true">
     <div class="send-overlay__card" role="status" aria-live="polite">
       <div class="send-overlay__spinner" aria-hidden="true"></div>
-      <strong>در حال ارسال به سلورا...</strong>
-      <p>اطلاعات محصولات در حال ثبت در staging سلورا هستند. لطفاً این صفحه را نبند.</p>
+
+      <strong id="send-progress-title">
+        در حال ارسال به سلورا...
+      </strong>
+
+      <p id="send-progress-message">
+        اطلاعات محصولات در حال ثبت و فایل‌ها در حال انتقال هستند.
+      </p>
+
+      <div class="send-progress">
+        <div class="send-progress__head">
+          <strong id="send-progress-count">0 از 0 فایل</strong>
+          <span id="send-progress-percent">0٪</span>
+        </div>
+
+        <div
+          class="send-progress__track"
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+          id="send-progress-track"
+        >
+          <div
+            class="send-progress__bar"
+            id="send-progress-bar"
+            style="width:0%"
+          ></div>
+        </div>
+
+        <div class="send-progress__stats">
+          <span>
+            <strong id="send-progress-completed">0</strong>
+            ارسال‌شده
+          </span>
+
+          <span>
+            <strong id="send-progress-remaining">0</strong>
+            باقی‌مانده
+          </span>
+        </div>
+
+        <div
+          class="send-progress__resume"
+          id="send-progress-resume"
+          hidden
+        >
+          ادامه ارسال از فایل‌های باقی‌مانده انجام می‌شود؛
+          فایل‌های موفق دوباره آپلود نمی‌شوند.
+        </div>
+      </div>
+
       <div class="send-overlay__meta">
-        <span><strong id="send-overlay-product-count" style="display:inline;font-size:12px;"></strong> محصول</span>
-        <span>ارسال امن و idempotent</span>
+        <span>
+          <strong
+            id="send-overlay-product-count"
+            style="display:inline;font-size:12px;"
+          ></strong>
+          محصول
+        </span>
+        <span>ارسال امن و قابل ادامه</span>
       </div>
     </div>
+  </div>
+
   </div>
 {% endblock %}
 
@@ -692,6 +800,202 @@
     ;(() => {
       'use strict'
     
+      const uploadProgressUrl = {{ url_for(
+        'web.import_draft_upload_progress',
+        draft_id=draft.id
+      )|tojson }}
+
+      const sendForm = document.getElementById(
+        'send-to-selora-form'
+      )
+
+      const sendOverlay = document.getElementById(
+        'send-overlay'
+      )
+
+      const sendProgressTitle = document.getElementById(
+        'send-progress-title'
+      )
+
+      const sendProgressMessage = document.getElementById(
+        'send-progress-message'
+      )
+
+      const sendProgressCount = document.getElementById(
+        'send-progress-count'
+      )
+
+      const sendProgressPercent = document.getElementById(
+        'send-progress-percent'
+      )
+
+      const sendProgressTrack = document.getElementById(
+        'send-progress-track'
+      )
+
+      const sendProgressBar = document.getElementById(
+        'send-progress-bar'
+      )
+
+      const sendProgressCompleted = document.getElementById(
+        'send-progress-completed'
+      )
+
+      const sendProgressRemaining = document.getElementById(
+        'send-progress-remaining'
+      )
+
+      const sendProgressResume = document.getElementById(
+        'send-progress-resume'
+      )
+
+      let uploadProgressTimer = null
+
+      const renderUploadProgress = (progress) => {
+        const total = Math.max(
+          Number(progress.total) || 0,
+          0
+        )
+
+        const completed = Math.min(
+          Math.max(
+            Number(progress.completed) || 0,
+            0
+          ),
+          total || Number(progress.completed) || 0
+        )
+
+        const remaining = Math.max(
+          Number(progress.remaining) || 0,
+          0
+        )
+
+        const percent = total > 0
+          ? Math.round((completed / total) * 100)
+          : 0
+
+        sendProgressCount.textContent =
+          `${completed} از ${total} فایل`
+
+        sendProgressPercent.textContent =
+          `${percent}٪`
+
+        sendProgressCompleted.textContent =
+          String(completed)
+
+        sendProgressRemaining.textContent =
+          String(remaining)
+
+        sendProgressBar.style.width =
+          `${percent}%`
+
+        sendProgressTrack.setAttribute(
+          'aria-valuenow',
+          String(percent)
+        )
+
+        const isResume =
+          completed > 0 &&
+          completed < total
+
+        sendProgressResume.hidden =
+          !isResume
+
+        if (progress.status === 'failed') {
+          sendProgressTitle.textContent =
+            'ارسال متوقف شد'
+
+          sendProgressMessage.textContent =
+            progress.error ||
+            'ارسال یکی از فایل‌ها با خطا مواجه شد.'
+
+          return
+        }
+
+        if (progress.status === 'complete') {
+          sendProgressTitle.textContent =
+            'ارسال فایل‌ها کامل شد'
+
+          sendProgressMessage.textContent =
+            `${completed} فایل با موفقیت منتقل شد.`
+
+          return
+        }
+
+        if (isResume) {
+          sendProgressTitle.textContent =
+            'در حال ادامه ارسال...'
+
+          sendProgressMessage.textContent =
+            `${completed} فایل قبلاً ارسال شده؛ فقط فایل‌های باقی‌مانده منتقل می‌شوند.`
+
+          return
+        }
+
+        sendProgressTitle.textContent =
+          'در حال ارسال به سلورا...'
+
+        if (progress.current > 0 && total > 0) {
+          sendProgressMessage.textContent =
+            `فایل ${progress.current} از ${total} در حال پردازش است.`
+        } else {
+          sendProgressMessage.textContent =
+            'در حال آماده‌سازی اطلاعات و فایل‌ها...'
+        }
+      }
+
+      const pollUploadProgress = async () => {
+        try {
+          const response = await fetch(
+            uploadProgressUrl,
+            {
+              headers: {
+                'Accept': 'application/json'
+              },
+              cache: 'no-store'
+            }
+          )
+
+          if (!response.ok) {
+            return
+          }
+
+          const body = await response.json()
+
+          if (
+            body &&
+            body.ok &&
+            body.progress
+          ) {
+            renderUploadProgress(
+              body.progress
+            )
+          }
+        } catch (_) {
+          // POST اصلی ارسال همچنان ادامه دارد.
+        }
+      }
+
+      const startUploadProgressPolling = () => {
+        if (uploadProgressTimer !== null) {
+          return
+        }
+
+        pollUploadProgress()
+
+        uploadProgressTimer = window.setInterval(
+          pollUploadProgress,
+          400
+        )
+      }
+
+      sendForm?.addEventListener(
+        'submit',
+        () => {
+          startUploadProgressPolling()
+        }
+      )
+
       const remoteWorkspaceAlert = document.getElementById(
             'remote-workspace-alert'
           )

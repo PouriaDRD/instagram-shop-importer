@@ -238,6 +238,10 @@ def _remote_api_error_response(
         status_code,
     )
 
+from app.services.selora_upload_checkpoint_service import (
+    SeloraUploadCheckpointService,
+)
+
 
 @web_bp.get("/")
 def index() -> str:
@@ -1038,6 +1042,32 @@ def import_draft_final_review(draft_id: str) -> ResponseReturnValue:
             "SELORA_WORKSPACE_HEARTBEAT_SECONDS"
         ],
     )
+
+
+
+@web_bp.get("/draft/<draft_id>/upload-progress")
+def import_draft_upload_progress(
+    draft_id: str,
+) -> ResponseReturnValue:
+    repository = ImportDraftRepository()
+    draft = repository.get(
+        draft_id=draft_id,
+    )
+
+    if draft is None:
+        abort(404)
+
+    status = (
+        SeloraUploadCheckpointService()
+        .read_status(
+            draft_id=draft_id,
+        )
+    )
+
+    return {
+        "ok": True,
+        "progress": status,
+    }
 
 
 @web_bp.post("/draft/<draft_id>/send")

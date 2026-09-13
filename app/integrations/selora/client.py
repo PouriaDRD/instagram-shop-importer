@@ -20,6 +20,19 @@ class SeloraApiConfigurationError(SeloraApiError):
 class SeloraApiNetworkError(SeloraApiError):
     """Selora could not be reached or timed out."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        request_id: str = "",
+        stage: str = "",
+        retryable: bool = True,
+    ) -> None:
+        super().__init__(message)
+        self.request_id = request_id
+        self.stage = stage
+        self.retryable = retryable
+
 
 class SeloraApiResponseError(SeloraApiError):
     def __init__(
@@ -29,6 +42,10 @@ class SeloraApiResponseError(SeloraApiError):
         code: str,
         message: str,
         request_id: str,
+        content_type: str = "",
+        response_preview: str = "",
+        retryable: bool | None = None,
+        stage: str = "",
     ) -> None:
         super().__init__(
             message
@@ -36,6 +53,22 @@ class SeloraApiResponseError(SeloraApiError):
         self.status_code = status_code
         self.code = code
         self.request_id = request_id
+        self.content_type = content_type
+        self.response_preview = response_preview
+        self.retryable = (
+            retryable
+            if retryable is not None
+            else status_code in {
+                408,
+                425,
+                429,
+                500,
+                502,
+                503,
+                504,
+            }
+        )
+        self.stage = stage
 
 
 @dataclass(frozen=True, slots=True)
@@ -446,7 +479,10 @@ class SeloraApiClient:
                 )
         except requests.RequestException as exc:
             raise SeloraApiNetworkError(
-                "ارسال فایل به API سلورا با خطای شبکه مواجه شد."
+                "ارسال فایل به API سلورا با خطای شبکه مواجه شد.",
+                request_id=effective_request_id,
+                stage="asset_upload",
+                retryable=True,
             ) from exc
 
         response_request_id = (
@@ -582,7 +618,10 @@ class SeloraApiClient:
                 )
         except requests.RequestException as exc:
             raise SeloraApiNetworkError(
-                "ارتباط با API سلورا برقرار نشد."
+                "ارتباط با API سلورا برقرار نشد.",
+                request_id=effective_request_id,
+                stage=path,
+                retryable=True,
             ) from exc
 
         response_request_id = (
@@ -825,17 +864,70 @@ class SeloraApiClient:
         *,
         response: requests.Response,
     ) -> dict[str, Any]:
+        request_id = (
+            response.headers.get(
+                "X-Request-ID",
+                "",
+            ).strip()
+        )
+
+        content_type = (
+            response.headers.get(
+                "Content-Type",
+                "",
+            ).strip()
+        )
+
         try:
             body: object = response.json()
+
         except ValueError as exc:
+            preview = (
+                response.text
+                or ""
+            ).strip()
+
+            preview = (
+                preview[:500]
+            )
+
+            if response.status_code >= 400:
+                code = (
+                    f"http_{response.status_code}"
+                    "_non_json"
+                )
+                message = (
+                    "سلورا پاسخ HTTP ناموفق و "
+                    "غیر JSON برگرداند."
+                )
+            else:
+                code = (
+                    "invalid_json_response"
+                )
+                message = (
+                    "سلورا پاسخ JSON معتبر "
+                    "برنگرداند."
+                )
+
             raise SeloraApiResponseError(
                 status_code=response.status_code,
-                code="invalid_json_response",
-                message="سلورا پاسخ JSON معتبر برنگرداند.",
-                request_id=response.headers.get(
-                    "X-Request-ID",
-                    "",
-                ).strip(),
+                code=code,
+                message=message,
+                request_id=request_id,
+                content_type=content_type,
+                response_preview=preview,
+                retryable=(
+                    response.status_code
+                    in {
+                        408,
+                        425,
+                        429,
+                        500,
+                        502,
+                        503,
+                        504,
+                    }
+                ),
             ) from exc
 
         if not isinstance(
@@ -845,11 +937,13 @@ class SeloraApiClient:
             raise SeloraApiResponseError(
                 status_code=response.status_code,
                 code="invalid_json_response",
-                message="پاسخ JSON سلورا باید object باشد.",
-                request_id=response.headers.get(
-                    "X-Request-ID",
-                    "",
-                ).strip(),
+                message=(
+                    "پاسخ JSON سلورا "
+                    "باید object باشد."
+                ),
+                request_id=request_id,
+                content_type=content_type,
+                retryable=False,
             )
 
         return body

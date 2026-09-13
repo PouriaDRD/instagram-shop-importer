@@ -2,10 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import logging
 from pathlib import Path
 
 from app.config import Config
-from app.integrations.selora.client import SeloraApiClient, SeloraImportResult
+from app.integrations.selora.client import (
+    SeloraApiClient,
+    SeloraApiError,
+    SeloraApiNetworkError,
+    SeloraApiResponseError,
+    SeloraImportResult,
+)
 from app.integrations.selora.payload_mapper import SeloraPayloadMapper, SeloraPayloadMappingError
 from app.models import CrawlSession
 from app.models.import_draft import ImportDraft
@@ -14,6 +21,12 @@ from app.services.selora_media_derivative_service import (
     SeloraMediaDerivativeError,
     SeloraMediaDerivativeService,
 )
+from app.services.selora_upload_checkpoint_service import (
+    SeloraUploadCheckpointService,
+)
+
+
+logger = logging.getLogger("app")
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,21 +82,214 @@ class SeloraImportService:
                 "قفل Workspace برای انتقال فایل‌ها در دسترس نیست."
             )
 
-        for index, pending in enumerate(pending_uploads, start=1):
-            self.client.upload_workspace_asset(
+        checkpoint_service = (
+            SeloraUploadCheckpointService()
+        )
+
+        checkpoint = (
+            checkpoint_service.load(
+                draft_id=draft.id,
                 workspace_id=workspace_id,
-                client_workspace_id=draft.id,
-                client_instance_id=client_instance_id,
-                lock_token=lock_token,
-                expected_revision=result.workspace.revision,
-                instagram_media_id=pending.instagram_media_id,
-                asset_type=pending.asset_type,
-                position=pending.position,
-                sha256=pending.sha256,
-                file_path=pending.file_path,
-                content_type=pending.content_type,
-                request_id=f"{draft.id}:asset:{index}",
             )
+        )
+
+        total_uploads = len(
+            pending_uploads
+        )
+
+        checkpoint_service.update_progress(
+            draft_id=draft.id,
+            workspace_id=workspace_id,
+            checkpoint=checkpoint,
+            status="running",
+            total=total_uploads,
+        )
+
+        for index, pending in enumerate(
+            pending_uploads,
+            start=1,
+        ):
+            asset_key = (
+                checkpoint_service.asset_key(
+                    instagram_media_id=(
+                        pending.instagram_media_id
+                    ),
+                    asset_type=pending.asset_type,
+                    position=pending.position,
+                )
+            )
+
+            if checkpoint_service.is_uploaded(
+                checkpoint=checkpoint,
+                asset_key=asset_key,
+                sha256=pending.sha256,
+            ):
+                logger.info(
+                    (
+                        "Skipping already uploaded asset "
+                        "%s/%s: media=%s type=%s "
+                        "position=%s"
+                    ),
+                    index,
+                    total_uploads,
+                    pending.instagram_media_id,
+                    pending.asset_type,
+                    pending.position,
+                )
+                continue
+
+            checkpoint_service.update_progress(
+                draft_id=draft.id,
+                workspace_id=workspace_id,
+                checkpoint=checkpoint,
+                status="running",
+                total=total_uploads,
+                current=index,
+                current_media_id=(
+                    pending.instagram_media_id
+                ),
+                current_asset_type=(
+                    pending.asset_type
+                ),
+            )
+
+            size_bytes = (
+                pending.file_path.stat().st_size
+            )
+
+            request_id = (
+                f"{draft.id}:asset:{index}"
+            )
+
+            logger.info(
+                (
+                    "Uploading asset %s/%s: "
+                    "media=%s type=%s position=%s "
+                    "size=%s bytes"
+                ),
+                index,
+                total_uploads,
+                pending.instagram_media_id,
+                pending.asset_type,
+                pending.position,
+                size_bytes,
+            )
+
+            try:
+                upload_result = (
+                    self.client.upload_workspace_asset(
+                        workspace_id=workspace_id,
+                        client_workspace_id=draft.id,
+                        client_instance_id=client_instance_id,
+                        lock_token=lock_token,
+                        expected_revision=result.workspace.revision,
+                        instagram_media_id=pending.instagram_media_id,
+                        asset_type=pending.asset_type,
+                        position=pending.position,
+                        sha256=pending.sha256,
+                        file_path=pending.file_path,
+                        content_type=pending.content_type,
+                        request_id=request_id,
+                    )
+                )
+
+            except SeloraApiError as exc:
+                checkpoint_service.update_progress(
+                    draft_id=draft.id,
+                    workspace_id=workspace_id,
+                    checkpoint=checkpoint,
+                    status="failed",
+                    total=total_uploads,
+                    current=index,
+                    current_media_id=(
+                        pending.instagram_media_id
+                    ),
+                    current_asset_type=(
+                        pending.asset_type
+                    ),
+                    error=str(exc),
+                )
+
+                logger.error(
+                    (
+                        "Asset upload failed %s/%s: "
+                        "media=%s type=%s position=%s "
+                        "status=%s code=%s "
+                        "request_id=%s retryable=%s "
+                        "content_type=%s response=%s"
+                    ),
+                    index,
+                    total_uploads,
+                    pending.instagram_media_id,
+                    pending.asset_type,
+                    pending.position,
+                    getattr(
+                        exc,
+                        "status_code",
+                        "",
+                    ),
+                    getattr(
+                        exc,
+                        "code",
+                        exc.__class__.__name__,
+                    ),
+                    getattr(
+                        exc,
+                        "request_id",
+                        request_id,
+                    ),
+                    getattr(
+                        exc,
+                        "retryable",
+                        False,
+                    ),
+                    getattr(
+                        exc,
+                        "content_type",
+                        "",
+                    ),
+                    getattr(
+                        exc,
+                        "response_preview",
+                        "",
+                    ),
+                )
+
+                raise
+
+            checkpoint_service.mark_uploaded(
+                draft_id=draft.id,
+                workspace_id=workspace_id,
+                checkpoint=checkpoint,
+                asset_key=asset_key,
+                sha256=pending.sha256,
+                request_id=(
+                    upload_result.request_id
+                ),
+            )
+
+            logger.info(
+                (
+                    "Asset uploaded successfully "
+                    "%s/%s: media=%s type=%s "
+                    "position=%s operation=%s"
+                ),
+                index,
+                total_uploads,
+                pending.instagram_media_id,
+                pending.asset_type,
+                pending.position,
+                upload_result.operation,
+            )
+
+        checkpoint_service.update_progress(
+            draft_id=draft.id,
+            workspace_id=workspace_id,
+            checkpoint=checkpoint,
+            status="complete",
+            total=total_uploads,
+            current=total_uploads,
+        )
 
         return result
 
