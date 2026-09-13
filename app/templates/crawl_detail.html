@@ -52,6 +52,7 @@
     .selection-card {
       position: relative;
       overflow: hidden;
+      cursor: pointer;
       border: 1px solid #e5e7eb;
       border-radius: 18px;
       background: #fff;
@@ -68,12 +69,48 @@
     }
 
     .selection-card.is-selected {
-      border-color: #818cf8;
-      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.09);
+      border-color: #6366f1;
+      box-shadow:
+        0 0 0 3px rgba(99, 102, 241, 0.10),
+        0 12px 30px rgba(17, 24, 39, 0.07);
     }
 
     .selection-card.is-unselected {
-      opacity: 0.64;
+      opacity: 0.5;
+      border-color: #e5e7eb;
+      background: #f9fafb;
+      box-shadow: none;
+      filter: grayscale(0.55);
+    }
+
+    .selection-card.is-unselected:hover {
+      transform: none;
+      box-shadow: none;
+    }
+
+    .selection-card.is-unselected .selection-card__media img {
+      opacity: 0.72;
+    }
+
+    .selection-card.is-unselected .selection-card__caption,
+    .selection-card.is-unselected .selection-card__asset-summary {
+      opacity: 0.72;
+    }
+
+    .selection-card.is-selected::after {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 4;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: #4f46e5;
+      color: #fff;
+      content: "انتخاب شده";
+      font-size: 10px;
+      font-weight: 800;
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.22);
+      pointer-events: none;
     }
 
     .selection-card__media {
@@ -223,9 +260,18 @@
       color: #9ca3af;
     }
 
+    .asset-manage-button {
+      cursor: pointer;
+    }
+
     .asset-manage-button:disabled {
+      border-color: #e5e7eb;
+      background: #f3f4f6;
+      color: #9ca3af;
       cursor: not-allowed;
-      opacity: 0.45;
+      opacity: 0.62;
+      box-shadow: none;
+      transform: none;
     }
 
     .asset-dialog {
@@ -330,6 +376,49 @@
 
     .asset-choice.is-selected {
       border-color: #4f46e5;
+      box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.10);
+    }
+
+    .asset-choice:not(.is-selected) {
+      opacity: 0.68;
+    }
+
+    .asset-choice:not(.is-selected):hover {
+      opacity: 0.9;
+    }
+
+    .asset-choice.is-disabled {
+      opacity: 0.38;
+      border-color: #d1d5db;
+      background: #e5e7eb;
+      cursor: not-allowed;
+      filter: grayscale(1);
+      box-shadow: none;
+    }
+
+    .asset-choice.is-disabled:hover {
+      opacity: 0.38;
+    }
+
+    .asset-choice.is-disabled::after {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      background: rgba(17, 24, 39, 0.52);
+      color: #fff;
+      content: "🔒  فعلاً قابل ارسال نیست";
+      font-size: 11px;
+      font-weight: 800;
+      text-align: center;
+      pointer-events: none;
+      backdrop-filter: blur(1px);
+    }
+
+    .asset-choice.is-disabled .asset-choice__check {
+      display: none;
     }
 
     .asset-choice input {
@@ -404,6 +493,23 @@
       background: rgba(255, 255, 255, 0.95);
       box-shadow: 0 -8px 28px rgba(17, 24, 39, 0.08);
       backdrop-filter: blur(12px);
+    }
+
+    .selection-stickybar.is-empty {
+      border-top-color: #e5e7eb;
+      background: rgba(249, 250, 251, 0.97);
+    }
+
+    .selection-stickybar.is-empty .selection-stickybar__summary {
+      opacity: 0.58;
+    }
+
+    .selection-stickybar.is-empty #create-draft-button {
+      background: #d1d5db;
+      color: #6b7280;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
     }
 
     .selection-stickybar__inner {
@@ -642,11 +748,15 @@
             <div class="selection-grid">
               {% for media in crawl_session.media %}
                 {% set media_is_selected = media.id in selected_media_ids %}
-                {% set asset_ns = namespace(selected=0) %}
+                {% set asset_ns = namespace(selected=0, selectable=0) %}
 
                 {% for asset in media.assets %}
-                  {% if asset.id in selected_asset_ids %}
-                    {% set asset_ns.selected = asset_ns.selected + 1 %}
+                  {% if asset.asset_type != 'video' %}
+                    {% set asset_ns.selectable = asset_ns.selectable + 1 %}
+
+                    {% if asset.id in selected_asset_ids %}
+                      {% set asset_ns.selected = asset_ns.selected + 1 %}
+                    {% endif %}
                   {% endif %}
                 {% endfor %}
 
@@ -761,7 +871,7 @@
                         class="asset-dialog__count"
                         data-dialog-asset-count="{{ media.id }}"
                       >
-                        {{ asset_ns.selected }} از {{ media.assets|length }} فایل انتخاب شده
+                        {{ asset_ns.selected }} از {{ asset_ns.selectable }} فایل قابل ارسال انتخاب شده
                       </span>
 
                       <div class="asset-dialog__toolbar-actions">
@@ -787,19 +897,25 @@
                       {% if media.assets %}
                         <div class="asset-dialog__grid">
                           {% for asset in media.assets %}
-                            {% set asset_is_selected = asset.id in selected_asset_ids %}
+                            {% set asset_is_video = asset.asset_type == 'video' %}
+                            {% set asset_is_selected = (
+                              not asset_is_video
+                              and asset.id in selected_asset_ids
+                            ) %}
 
                             <label
-                              class="asset-choice {% if asset_is_selected %}is-selected{% endif %}"
+                              class="asset-choice {% if asset_is_selected %}is-selected{% endif %}{% if asset_is_video %} is-disabled{% endif %}"
                               data-asset-choice
+                              {% if asset_is_video %}aria-disabled="true"{% endif %}
                             >
                               <input
                                 type="checkbox"
                                 name="asset_ids"
                                 value="{{ asset.id }}"
                                 {% if asset_is_selected %}checked{% endif %}
-                                {% if not media_is_selected %}disabled{% endif %}
+                                {% if asset_is_video or not media_is_selected %}disabled{% endif %}
                                 data-parent-media="{{ media.id }}"
+                                data-asset-type="{{ asset.asset_type }}"
                               />
 
                               {% if asset.asset_type == 'video' %}
@@ -813,7 +929,7 @@
                                 {% if asset.asset_type == 'thumbnail' %}
                                   Thumbnail
                                 {% elif asset.asset_type == 'video' %}
-                                  Video
+                                  Video · فعلاً قابل ارسال نیست
                                 {% else %}
                                   Image
                                 {% endif %}
@@ -844,7 +960,10 @@
               حداقل یک محتوا را به‌عنوان محصول انتخاب کن.
             </p>
 
-            <div class="selection-stickybar">
+            <div
+              class="selection-stickybar {% if selected_media_ids|length == 0 %}is-empty{% endif %}"
+              id="selection-stickybar"
+            >
               <div class="selection-stickybar__inner">
                 <div class="selection-stickybar__summary">
                   <div class="selection-stickybar__metric">
@@ -941,6 +1060,10 @@
           'selection-empty-warning'
         )
 
+        const stickyBar = document.getElementById(
+          'selection-stickybar'
+        )
+
         const assetsForMedia = (mediaId) => {
           return assetCheckboxes.filter(
             (checkbox) => checkbox.dataset.parentMedia === mediaId
@@ -1019,6 +1142,11 @@
             selectedMedia === 0
           )
 
+          stickyBar?.classList.toggle(
+            'is-empty',
+            selectedMedia === 0
+          )
+
           mediaCheckboxes.forEach((checkbox) => {
             const mediaId = checkbox.dataset.mediaCheckbox
             const card = document.querySelector(
@@ -1060,15 +1188,29 @@
           }
 
           assets.forEach((assetCheckbox) => {
-            assetCheckbox.disabled = false
+            const isVideo = (
+              assetCheckbox.dataset.assetType === 'video'
+            )
+
+            assetCheckbox.disabled = isVideo
+
+            if (isVideo) {
+              assetCheckbox.checked = false
+            }
           })
 
-          const hasSelectedAsset = assets.some(
+          const selectableAssets = assets.filter(
+            (assetCheckbox) => (
+              assetCheckbox.dataset.assetType !== 'video'
+            )
+          )
+
+          const hasSelectedAsset = selectableAssets.some(
             (assetCheckbox) => assetCheckbox.checked
           )
 
           if (!hasSelectedAsset) {
-            assets.forEach((assetCheckbox) => {
+            selectableAssets.forEach((assetCheckbox) => {
               assetCheckbox.checked = true
             })
           }
@@ -1080,6 +1222,45 @@
             updateSummary()
           })
         })
+
+        document.querySelectorAll('[data-media-card]').forEach(
+          (card) => {
+            card.addEventListener('click', (event) => {
+              const target = event.target
+
+              if (!(target instanceof Element)) {
+                return
+              }
+
+              // مدیریت فایل‌ها نباید selection محصول را تغییر دهد.
+              if (target.closest('[data-open-assets]')) {
+                return
+              }
+
+              // خود کنترل checkbox رفتار native خودش را دارد.
+              if (target.closest('.selection-toggle')) {
+                return
+              }
+
+              const mediaId = card.dataset.mediaCard
+              const mediaCheckbox = form.querySelector(
+                `[data-media-checkbox="${mediaId}"]`
+              )
+
+              if (!(mediaCheckbox instanceof HTMLInputElement)) {
+                return
+              }
+
+              mediaCheckbox.checked = !mediaCheckbox.checked
+
+              mediaCheckbox.dispatchEvent(
+                new Event('change', {
+                  bubbles: true,
+                })
+              )
+            })
+          }
+        )
 
         assetCheckboxes.forEach((assetCheckbox) => {
           assetCheckbox.addEventListener('change', () => {

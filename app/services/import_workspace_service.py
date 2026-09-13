@@ -485,6 +485,25 @@ class ImportWorkspaceService:
                 )
             )
 
+        selected_video_asset_ids = {
+            asset.id
+            for media in source.media
+            if media.id in selected_media_ids
+            for asset in media.assets
+            if (
+                asset.asset_type == "video"
+                and asset.id in selected_asset_ids
+            )
+        }
+
+        if selected_video_asset_ids:
+            raise ValueError(
+                (
+                    "Video assets cannot currently be selected "
+                    "or sent to Selora."
+                )
+            )
+
     def _sync_workspace_selection(
         self,
         *,
@@ -566,8 +585,10 @@ class ImportWorkspaceService:
         desired_assets = [
             asset
             for asset in media_assets
-            if asset.id
-            in selected_asset_ids
+            if (
+                asset.id in selected_asset_ids
+                and asset.asset_type != "video"
+            )
         ]
 
         desired_ids = {

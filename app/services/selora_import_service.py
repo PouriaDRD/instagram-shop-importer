@@ -10,6 +10,10 @@ from app.integrations.selora.payload_mapper import SeloraPayloadMapper, SeloraPa
 from app.models import CrawlSession
 from app.models.import_draft import ImportDraft
 from app.services.media_storage_service import InstagramMediaStorageService
+from app.services.selora_media_derivative_service import (
+    SeloraMediaDerivativeError,
+    SeloraMediaDerivativeService,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,7 +98,10 @@ class SeloraImportService:
             for item in draft.items
             if item.is_selected
             for selected_asset in item.selected_assets
-            if selected_asset.is_selected
+            if (
+                selected_asset.is_selected
+                and selected_asset.asset.asset_type != "video"
+            )
         ]
 
         if not selected_assets:
@@ -113,6 +120,9 @@ class SeloraImportService:
             storage_service.persist_source(source=crawl_session)
 
         pending: list[PendingAssetUpload] = []
+        derivative_service = (
+            SeloraMediaDerivativeService()
+        )
 
         for asset in selected_assets:
             file_path = storage_service.resolve_file_path(asset=asset)
@@ -121,15 +131,34 @@ class SeloraImportService:
                     "فایل یکی از Assetهای انتخاب‌شده در ذخیره محلی موجود نیست و قابل ارسال به سلورا نیست."
                 )
 
-            sha256 = asset.local_sha256 or self._sha256(file_path)
+            source_sha256 = (
+                asset.local_sha256
+                or self._sha256(file_path)
+            )
+
+            try:
+                prepared = (
+                    derivative_service.prepare_webp(
+                        source_path=file_path,
+                        source_sha256=source_sha256,
+                    )
+                )
+            except SeloraMediaDerivativeError as exc:
+                raise SeloraPayloadMappingError(
+                    (
+                        "Preparing selected Instagram "
+                        "image for Selora failed."
+                    )
+                ) from exc
+
             pending.append(
                 PendingAssetUpload(
                     instagram_media_id=asset.media.media_id,
                     asset_type=asset.asset_type,
                     position=asset.position,
-                    file_path=file_path,
-                    content_type=asset.local_content_type,
-                    sha256=sha256,
+                    file_path=prepared.file_path,
+                    content_type=prepared.content_type,
+                    sha256=prepared.sha256,
                 )
             )
 

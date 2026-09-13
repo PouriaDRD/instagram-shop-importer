@@ -440,6 +440,110 @@
         flex: 1;
       }
     }
+  
+    .remote-workspace-alert {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      justify-content: space-between;
+      margin: 18px 0;
+      padding: 16px 18px;
+      border: 1px solid #dbeafe;
+      border-radius: 16px;
+      background: #eff6ff;
+      color: #1e3a8a;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+    }
+
+    .remote-workspace-alert.is-editable {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+      color: #166534;
+    }
+
+    .remote-workspace-alert.is-warning {
+      border-color: #fde68a;
+      background: #fffbeb;
+      color: #92400e;
+    }
+
+    .remote-workspace-alert.is-readonly {
+      border-color: #fecaca;
+      background: #fef2f2;
+      color: #991b1b;
+    }
+
+    .remote-workspace-alert__content {
+      display: flex;
+      min-width: 0;
+      flex: 1;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .remote-workspace-alert__icon {
+      display: grid;
+      width: 38px;
+      height: 38px;
+      flex: 0 0 38px;
+      place-items: center;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.72);
+      font-size: 17px;
+    }
+
+    .remote-workspace-alert__text {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .remote-workspace-alert__text strong {
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .remote-workspace-alert__text span {
+      color: inherit;
+      font-size: 12px;
+      line-height: 1.9;
+      opacity: 0.82;
+    }
+
+    .remote-workspace-alert__state {
+      display: inline-flex;
+      width: fit-content;
+      margin-top: 4px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.74);
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .remote-workspace-alert__actions {
+      display: flex;
+      flex: 0 0 auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    @media (max-width: 720px) {
+      .remote-workspace-alert {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .remote-workspace-alert__actions {
+        width: 100%;
+      }
+
+      .remote-workspace-alert__actions .button {
+        flex: 1;
+      }
+    }
+
   </style>
 {% endblock %}
 
@@ -504,28 +608,53 @@
 
 
 
+
   <div
-    class="remote-workspace-alert {% if remote_error and not remote_read_only %}is-warning{% endif %}"
+    class="remote-workspace-alert {% if remote_read_only %}is-readonly{% elif remote_error %}is-warning{% else %}is-editable{% endif %}"
     id="remote-workspace-alert"
-    {% if not remote_error and not remote_read_only %}hidden{% endif %}
   >
     <div class="remote-workspace-alert__content">
-      <strong id="remote-workspace-alert-title">
+      <div class="remote-workspace-alert__icon" aria-hidden="true">
         {% if remote_read_only %}
-          ویرایش این Workspace متوقف شده است
+          🔒
+        {% elif remote_error %}
+          ⚠
         {% else %}
-          وضعیت Workspace در سلورا
+          ✓
         {% endif %}
-      </strong>
-      <span id="remote-workspace-alert-message">
-        {% if remote_error %}
-          {{ remote_error }}
-        {% elif remote_read_only_reason %}
-          {{ remote_read_only_reason }}
-        {% else %}
-          برای جلوگیری از تعارض، وضعیت Workspace باید دوباره با سلورا همگام شود.
-        {% endif %}
-      </span>
+      </div>
+
+      <div class="remote-workspace-alert__text">
+        <strong id="remote-workspace-alert-title">
+          {% if remote_read_only %}
+            این Workspace فقط قابل مشاهده است
+          {% elif remote_error %}
+            وضعیت قفل Workspace نیاز به بررسی دارد
+          {% else %}
+            ویرایش برای این دستگاه فعال است
+          {% endif %}
+        </strong>
+
+        <span id="remote-workspace-alert-message">
+          {% if remote_read_only_reason %}
+            {{ remote_read_only_reason }}
+          {% elif remote_error %}
+            {{ remote_error }}
+          {% else %}
+            Workspace با سلورا همگام است و می‌توانی ویرایش محصولات را ادامه بدهی.
+          {% endif %}
+        </span>
+
+        <span class="remote-workspace-alert__state">
+          {% if remote_read_only %}
+            حالت فقط‌خواندنی
+          {% elif remote_error %}
+            نیاز به همگام‌سازی
+          {% else %}
+            قابل ویرایش
+          {% endif %}
+        </span>
+      </div>
     </div>
 
     <div class="remote-workspace-alert__actions">
@@ -534,7 +663,7 @@
         class="button button--secondary button--small"
         id="remote-workspace-reload"
       >
-        تازه‌سازی صفحه
+        تازه‌سازی وضعیت
       </button>
 
       <button
@@ -548,7 +677,8 @@
     </div>
   </div>
 
-  {% if save_success %}
+
+{% if save_success %}
     <div class="draft-save-message draft-save-message--success">
       <strong>تغییرات ذخیره شد.</strong>
       <span>می‌توانی ویرایش را ادامه بدهی یا به بررسی نهایی بروی.</span>

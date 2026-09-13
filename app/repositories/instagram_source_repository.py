@@ -439,7 +439,9 @@ class InstagramSourceRepository:
                     duration_seconds=(
                         item.duration_seconds
                     ),
-                    is_selected=True,
+                    is_selected=(
+                        item.asset_type.value != "video"
+                    ),
                     is_available=True,
                     last_seen_at=seen_at,
                     asset_metadata=item.metadata,
@@ -461,6 +463,9 @@ class InstagramSourceRepository:
             )
             asset.asset_metadata = (
                 item.metadata
+            )
+            asset.is_selected = (
+                item.asset_type.value != "video"
             )
             asset.is_available = True
             asset.last_seen_at = seen_at

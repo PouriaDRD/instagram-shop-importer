@@ -465,7 +465,10 @@ def _render_crawl_detail(
     if current_draft is None:
         selected_media_ids = {media.id for media in crawl_session.media}
         selected_asset_ids = {
-            asset.id for media in crawl_session.media for asset in media.assets
+            asset.id
+            for media in crawl_session.media
+            for asset in media.assets
+            if asset.asset_type != "video"
         }
     else:
         selected_media_ids = {
@@ -476,7 +479,10 @@ def _render_crawl_detail(
             for item in current_draft.items
             if item.is_selected
             for selected_asset in item.selected_assets
-            if selected_asset.is_selected
+            if (
+                selected_asset.is_selected
+                and selected_asset.asset.asset_type != "video"
+            )
         }
 
     rendered = render_template(
@@ -560,14 +566,6 @@ def import_draft_review(draft_id: str) -> ResponseReturnValue:
     if draft is None:
         abort(404)
 
-    service = ImportDraftService(repository=repository)
-    service.ensure_product_data(draft=draft)
-
-    # Reload after potential creation so all relationships are consistently available.
-    draft = repository.get(draft_id=draft_id)
-    if draft is None:
-        abort(404)
-
     crawl_repository = CrawlSessionRepository()
     crawl_session = crawl_repository.get(
         session_id=draft.crawl_session_id
@@ -576,6 +574,9 @@ def import_draft_review(draft_id: str) -> ResponseReturnValue:
     if crawl_session is None:
         abort(404)
 
+    # Resolve the remote workspace state before performing any local
+    # mutation. A GET for a finalized/locked workspace must remain
+    # readable instead of failing through _ensure_editable().
     remote_state = _prepare_remote_editor_state(
         draft=draft,
         crawl_session=crawl_session,
@@ -589,17 +590,40 @@ def import_draft_review(draft_id: str) -> ResponseReturnValue:
         or draft
     )
 
+    remote_is_read_only = (
+        draft.is_remote_read_only
+        or remote_state.read_only_reason is not None
+    )
+
+    remote_state_is_known_and_editable = (
+        remote_state.error is None
+        and not remote_is_read_only
+    )
+
+    if remote_state_is_known_and_editable:
+        service = ImportDraftService(
+            repository=repository
+        )
+        service.ensure_product_data(
+            draft=draft
+        )
+
+        # Reload after potential product-data creation so all
+        # relationships are consistently available.
+        draft = (
+            repository.get(
+                draft_id=draft_id
+            )
+            or draft
+        )
+
     return render_template(
         "import_review.html",
         draft=draft,
         save_error=None,
         save_success=request.args.get("saved") == "1",
         remote_error=remote_state.error,
-        remote_read_only=(
-            draft.is_remote_read_only
-            or remote_state.read_only_reason
-            is not None
-        ),
+        remote_read_only=remote_is_read_only,
         remote_read_only_reason=(
             remote_state.read_only_reason
         ),

@@ -20,6 +20,7 @@ Mako==1.4.1
 MarkupSafe==3.0.3
 packaging==26.3
 pefile==2024.8.26
+pillow==12.3.0
 playwright==1.62.0
 pluggy==1.6.0
 pydantic==2.13.5
