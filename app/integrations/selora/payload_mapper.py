@@ -150,10 +150,7 @@ class SeloraPayloadMapper:
             "like_count": media.like_count,
             "comment_count": media.comment_count,
             "view_count": media.view_count,
-            "raw_payload": dict(
-                media.raw_payload
-                or {}
-            ),
+            "raw_payload": {},
             "selected": item.is_selected,
             "visible": getattr(
                 media,
