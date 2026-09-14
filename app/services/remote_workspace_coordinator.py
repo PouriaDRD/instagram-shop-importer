@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import logging
 
 from app.integrations.selora.client import (
     SeloraApiClient,
@@ -15,6 +16,9 @@ from app.models.import_workspace import (
 from app.repositories.import_workspace_repository import (
     ImportWorkspaceRepository,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class RemoteWorkspaceStateError(RuntimeError):
@@ -41,6 +45,15 @@ class RemoteWorkspaceCoordinator:
         workspace: ImportWorkspace,
         instagram_username: str,
     ) -> SeloraWorkspaceState:
+        logger.info(
+            (
+                "Resolving remote workspace: "
+                "draft_id=%s username=%s"
+            ),
+            workspace.id,
+            instagram_username,
+        )
+
         state = self._client.resolve_workspace(
             instagram_username=instagram_username,
             client_workspace_id=workspace.id,
@@ -91,6 +104,17 @@ class RemoteWorkspaceCoordinator:
             state=locked_state,
         )
         self._repository.commit()
+
+        logger.info(
+            (
+                "Remote workspace lock acquired: "
+                "draft_id=%s workspace_id=%s revision=%s"
+            ),
+            workspace.id,
+            locked_state.workspace_id,
+            locked_state.revision,
+        )
+
         return locked_state
 
     def refresh(

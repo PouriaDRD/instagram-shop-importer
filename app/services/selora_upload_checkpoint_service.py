@@ -3,11 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import logging
 import os
 from pathlib import Path
 import tempfile
 import time
 from typing import Any
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,7 +61,19 @@ class SeloraUploadCheckpointService:
             OSError,
             ValueError,
             TypeError,
-        ):
+        ) as exc:
+            logger.warning(
+                (
+                    "Upload checkpoint could not be read: "
+                    "draft_id=%s workspace_id=%s "
+                    "path=%s error_type=%s error=%s"
+                ),
+                draft_id,
+                workspace_id,
+                path,
+                type(exc).__name__,
+                exc,
+            )
             return {}
 
         if not isinstance(raw, dict):

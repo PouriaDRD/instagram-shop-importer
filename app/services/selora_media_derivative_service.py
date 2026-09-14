@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import logging
 from pathlib import Path
 
 from PIL import Image, ImageOps
+
+
+logger = logging.getLogger(__name__)
 
 
 class SeloraMediaDerivativeError(RuntimeError):
@@ -122,6 +126,25 @@ class SeloraMediaDerivativeService:
             )
 
         except Exception as exc:
+            logger.exception(
+                (
+                    "Selora WebP preparation failed: "
+                    "source=%s output=%s "
+                    "source_exists=%s source_size=%s "
+                    "error_type=%s error=%s"
+                ),
+                source_path,
+                output_path,
+                source_path.exists(),
+                (
+                    source_path.stat().st_size
+                    if source_path.exists()
+                    else None
+                ),
+                type(exc).__name__,
+                exc,
+            )
+
             if temporary_path.exists():
                 try:
                     temporary_path.unlink()

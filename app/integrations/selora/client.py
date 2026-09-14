@@ -3,10 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+import logging
+import time
 from typing import Any, Mapping
 from uuid import uuid4
 
 import requests
+
+
+logger = logging.getLogger(__name__)
 
 
 class SeloraApiError(RuntimeError):
@@ -462,6 +467,23 @@ class SeloraApiClient:
             "Accept": "application/json",
         }
 
+        started_at = time.perf_counter()
+
+        logger.info(
+            (
+                "Selora asset upload started: "
+                "workspace_id=%s media_id=%s "
+                "type=%s position=%s bytes=%s "
+                "request_id=%s"
+            ),
+            workspace_id,
+            instagram_media_id,
+            asset_type,
+            position,
+            file_path.stat().st_size,
+            effective_request_id,
+        )
+
         try:
             with file_path.open("rb") as file_handle:
                 response = self._http.post(
@@ -478,6 +500,31 @@ class SeloraApiClient:
                     timeout=self._timeout,
                 )
         except requests.RequestException as exc:
+            duration_ms = (
+                time.perf_counter()
+                - started_at
+            ) * 1000
+
+            logger.exception(
+                (
+                    "Selora asset upload network failure: "
+                    "workspace_id=%s media_id=%s "
+                    "type=%s position=%s "
+                    "path=%s request_id=%s "
+                    "duration_ms=%.1f "
+                    "error_type=%s error=%s"
+                ),
+                workspace_id,
+                instagram_media_id,
+                asset_type,
+                position,
+                path,
+                effective_request_id,
+                duration_ms,
+                type(exc).__name__,
+                exc,
+            )
+
             raise SeloraApiNetworkError(
                 "ارسال فایل به API سلورا با خطای شبکه مواجه شد.",
                 request_id=effective_request_id,
@@ -485,10 +532,37 @@ class SeloraApiClient:
                 retryable=True,
             ) from exc
 
+        duration_ms = (
+            time.perf_counter()
+            - started_at
+        ) * 1000
+
         response_request_id = (
             response.headers.get("X-Request-ID", "").strip()
             or effective_request_id
         )
+
+        logger.info(
+            (
+                "Selora asset upload response: "
+                "workspace_id=%s media_id=%s "
+                "type=%s position=%s status=%s "
+                "request_id=%s duration_ms=%.1f "
+                "content_type=%s"
+            ),
+            workspace_id,
+            instagram_media_id,
+            asset_type,
+            position,
+            response.status_code,
+            response_request_id,
+            duration_ms,
+            response.headers.get(
+                "Content-Type",
+                "",
+            ),
+        )
+
         body = self._read_json_object(response=response)
 
         if response.status_code not in {200, 201}:
@@ -596,10 +670,20 @@ class SeloraApiClient:
             )
 
         url = f"{self._base_url}{path}"
+        normalized_method = method.upper()
+        started_at = time.perf_counter()
+
+        logger.info(
+            (
+                "Selora API request started: "
+                "method=%s path=%s request_id=%s"
+            ),
+            normalized_method,
+            path,
+            effective_request_id,
+        )
 
         try:
-            normalized_method = method.upper()
-
             if normalized_method == "POST":
                 response = self._http.post(
                     url,
@@ -617,6 +701,26 @@ class SeloraApiClient:
                     **request_kwargs,
                 )
         except requests.RequestException as exc:
+            duration_ms = (
+                time.perf_counter()
+                - started_at
+            ) * 1000
+
+            logger.exception(
+                (
+                    "Selora API network failure: "
+                    "method=%s path=%s "
+                    "request_id=%s duration_ms=%.1f "
+                    "error_type=%s error=%s"
+                ),
+                normalized_method,
+                path,
+                effective_request_id,
+                duration_ms,
+                type(exc).__name__,
+                exc,
+            )
+
             raise SeloraApiNetworkError(
                 "ارتباط با API سلورا برقرار نشد.",
                 request_id=effective_request_id,
@@ -624,12 +728,35 @@ class SeloraApiClient:
                 retryable=True,
             ) from exc
 
+        duration_ms = (
+            time.perf_counter()
+            - started_at
+        ) * 1000
+
         response_request_id = (
             response.headers.get(
                 "X-Request-ID",
                 "",
             ).strip()
             or effective_request_id
+        )
+
+        logger.info(
+            (
+                "Selora API response received: "
+                "method=%s path=%s status=%s "
+                "request_id=%s duration_ms=%.1f "
+                "content_type=%s"
+            ),
+            normalized_method,
+            path,
+            response.status_code,
+            response_request_id,
+            duration_ms,
+            response.headers.get(
+                "Content-Type",
+                "",
+            ),
         )
 
         body = self._read_json_object(

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
+import logging
 import mimetypes
 import os
 from pathlib import Path
@@ -13,6 +14,9 @@ from sqlalchemy import select
 
 from app.extensions import db
 from app.models import InstagramAsset, InstagramMedia, InstagramSource
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +78,17 @@ class InstagramMediaStorageService:
             ).all()
         )
 
+        logger.info(
+            (
+                "Media persistence started: "
+                "source_id=%s username=%s assets=%s root=%s"
+            ),
+            source.id,
+            source.username,
+            len(assets),
+            self._root,
+        )
+
         saved = 0
         reused = 0
         failed = 0
@@ -99,6 +114,22 @@ class InstagramMediaStorageService:
                 asset.local_file_status = "failed"
                 asset.local_file_error = str(exc).strip()[:2000]
                 failed += 1
+
+                logger.exception(
+                    (
+                        "Media persistence failed: "
+                        "source_id=%s media_id=%s "
+                        "asset_id=%s type=%s position=%s "
+                        "error_type=%s error=%s"
+                    ),
+                    source.id,
+                    media.media_id,
+                    asset.id,
+                    asset.asset_type,
+                    asset.position,
+                    type(exc).__name__,
+                    exc,
+                )
 
         db.session.commit()
 

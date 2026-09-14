@@ -16,7 +16,7 @@ from app.repositories.import_workspace_repository import (
     ImportWorkspaceRepository,
 )
 
-logger = logging.getLogger("app")
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)

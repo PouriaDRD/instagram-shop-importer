@@ -23,7 +23,10 @@ RUNTIME_ROOT = _prepare_runtime_directory()
 import flask.cli  # noqa: E402
 
 from app import create_app  # noqa: E402
+from app.logging_config import configure_logging  # noqa: E402
 from app.config import Config  # noqa: E402
+
+configure_logging()
 
 logger = logging.getLogger("app")
 

@@ -21,9 +21,6 @@ from app.common.datetime import (
     format_iran_datetime,
     format_iran_time,
 )
-from app.common.logging import (
-    configure_logging,
-)
 from app.config import Config
 from app.extensions import db, migrate
 
@@ -32,10 +29,6 @@ http_logger = logging.getLogger("http")
 
 
 def create_app() -> Flask:
-    configure_logging(
-        level=Config.LOG_LEVEL,
-    )
-
     app_dir = Path(__file__).resolve().parent
 
     if getattr(sys, "frozen", False):

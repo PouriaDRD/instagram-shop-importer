@@ -25,8 +25,9 @@ from app.services.selora_upload_checkpoint_service import (
     SeloraUploadCheckpointService,
 )
 
+logger = logging.getLogger(__name__)
 
-logger = logging.getLogger("app")
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -310,7 +311,22 @@ class SeloraImportService:
             )
         ]
 
+        logger.info(
+            (
+                "Preparing selected Selora assets: "
+                "draft=%s selected_assets=%s "
+                "storage_root=%s"
+            ),
+            draft.id,
+            len(selected_assets),
+            Config.INSTAGRAM_MEDIA_STORAGE_DIR,
+        )
+
         if not selected_assets:
+            logger.info(
+                "No selected assets require Selora upload: draft=%s",
+                draft.id,
+            )
             return ()
 
         storage_service = self.media_storage_service or InstagramMediaStorageService(
@@ -337,6 +353,21 @@ class SeloraImportService:
                     "فایل یکی از Assetهای انتخاب‌شده در ذخیره محلی موجود نیست و قابل ارسال به سلورا نیست."
                 )
 
+            logger.info(
+                (
+                    "Preparing Selora asset: "
+                    "draft=%s media_id=%s "
+                    "type=%s position=%s "
+                    "file=%s bytes=%s"
+                ),
+                draft.id,
+                asset.media.media_id,
+                asset.asset_type,
+                asset.position,
+                file_path,
+                file_path.stat().st_size,
+            )
+
             source_sha256 = (
                 asset.local_sha256
                 or self._sha256(file_path)
@@ -356,6 +387,22 @@ class SeloraImportService:
                         "image for Selora failed."
                     )
                 ) from exc
+
+            logger.info(
+                (
+                    "Selora derivative ready: "
+                    "draft=%s media_id=%s "
+                    "type=%s position=%s "
+                    "file=%s bytes=%s sha256=%s"
+                ),
+                draft.id,
+                asset.media.media_id,
+                asset.asset_type,
+                asset.position,
+                prepared.file_path,
+                prepared.file_path.stat().st_size,
+                prepared.sha256,
+            )
 
             pending.append(
                 PendingAssetUpload(
