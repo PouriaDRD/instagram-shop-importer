@@ -5,7 +5,7 @@ import hashlib
 import logging
 from pathlib import Path
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageFile, ImageOps
 
 
 logger = logging.getLogger(__name__)
@@ -72,46 +72,87 @@ class SeloraMediaDerivativeService:
         )
 
         try:
-            with Image.open(source_path) as source_image:
-                image = ImageOps.exif_transpose(
-                    source_image
-                )
+            try:
+                with Image.open(source_path) as source_image:
+                    image = ImageOps.exif_transpose(
+                        source_image
+                    )
 
-                image.load()
+                    image.load()
 
+            except OSError as exc:
                 if (
-                    image.width > self.max_dimension
-                    or image.height > self.max_dimension
+                    "image file is truncated"
+                    not in str(exc).lower()
                 ):
-                    image.thumbnail(
-                        (
-                            self.max_dimension,
-                            self.max_dimension,
-                        ),
-                        Image.Resampling.LANCZOS,
-                    )
+                    raise
 
-                has_alpha = (
-                    image.mode in {"RGBA", "LA"}
-                    or (
-                        image.mode == "P"
-                        and "transparency"
-                        in image.info
-                    )
+                logger.warning(
+                    (
+                        "Retrying slightly truncated Instagram "
+                        "image with tolerant Pillow decoding: "
+                        "source=%s error=%s"
+                    ),
+                    source_path,
+                    exc,
                 )
 
-                if has_alpha:
-                    image = image.convert("RGBA")
-                else:
-                    image = image.convert("RGB")
-
-                image.save(
-                    temporary_path,
-                    format="WEBP",
-                    quality=self.quality,
-                    method=self.method,
-                    optimize=True,
+                previous_setting = (
+                    ImageFile.LOAD_TRUNCATED_IMAGES
                 )
+
+                try:
+                    ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+                    with Image.open(
+                        source_path
+                    ) as source_image:
+                        image = (
+                            ImageOps.exif_transpose(
+                                source_image
+                            )
+                        )
+
+                        image.load()
+
+                finally:
+                    ImageFile.LOAD_TRUNCATED_IMAGES = (
+                        previous_setting
+                    )
+
+            if (
+                image.width > self.max_dimension
+                or image.height > self.max_dimension
+            ):
+                image.thumbnail(
+                    (
+                        self.max_dimension,
+                        self.max_dimension,
+                    ),
+                    Image.Resampling.LANCZOS,
+                )
+
+            has_alpha = (
+                image.mode in {"RGBA", "LA"}
+                or (
+                    image.mode == "P"
+                    and "transparency"
+                    in image.info
+                )
+            )
+
+            if has_alpha:
+                image = image.convert("RGBA")
+            else:
+                image = image.convert("RGB")
+
+            image.save(
+                temporary_path,
+                format="WEBP",
+                quality=self.quality,
+                method=self.method,
+                optimize=True,
+            )
 
             if (
                 not temporary_path.is_file()
