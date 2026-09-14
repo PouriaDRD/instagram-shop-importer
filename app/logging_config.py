@@ -423,6 +423,17 @@ def configure_logging() -> Path:
         ),
     )
     app_handler.addFilter(
+        _LoggerNameFilter(
+            exact=(
+                "app",
+            ),
+            prefixes=(
+                "app.",
+            ),
+        )
+    )
+
+    app_handler.addFilter(
         _ExcludeLoggerFilter(
             exact=(
                 "http",
@@ -435,6 +446,9 @@ def configure_logging() -> Path:
                 "app.integrations.instagram",
                 "app.integrations.selora",
                 "app.services.selora",
+                "app.services.media_storage_service",
+                "app.services.import_workspace_service",
+                "app.services.remote_workspace_coordinator",
             ),
         )
     )
