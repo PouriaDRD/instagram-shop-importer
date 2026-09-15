@@ -117,13 +117,6 @@ class SeloraPayloadMapper:
                 "اطلاعات محصول یکی از آیتم‌ها ناقص است."
             )
 
-        selected_assets = tuple(
-            selected_asset
-            for selected_asset
-            in item.selected_assets
-            if selected_asset.is_selected
-        )
-
         all_available_assets = tuple(
             asset
             for asset in media.assets
@@ -131,6 +124,30 @@ class SeloraPayloadMapper:
                 asset,
                 "is_available",
                 True,
+            )
+        )
+
+        available_asset_keys = {
+            (
+                asset.asset_type,
+                asset.position,
+            )
+            for asset in all_available_assets
+        }
+
+        selected_assets = tuple(
+            selected_asset
+            for selected_asset
+            in item.selected_assets
+            if (
+                item.is_selected
+                and selected_asset.is_selected
+                and selected_asset.asset.asset_type != "video"
+                and (
+                    selected_asset.asset.asset_type,
+                    selected_asset.asset.position,
+                )
+                in available_asset_keys
             )
         )
 

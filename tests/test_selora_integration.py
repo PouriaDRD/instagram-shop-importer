@@ -215,3 +215,134 @@ class SeloraPayloadMapperTests(TestCase):
             payload["external_import_id"],
             draft.id,
         )
+
+    def _build_asset_mapping_item(
+        self,
+        *,
+        item_selected: bool = True,
+        asset_available: bool = True,
+    ):
+        crawl_session = CrawlSession(
+            username="mapping_shop",
+            status="completed",
+        )
+        crawl_session.id = "crawl-mapping"
+
+        media = CrawledMedia(
+            session=crawl_session,
+            media_id="media-mapping",
+            shortcode="MAP",
+            media_type="image",
+            permalink="https://instagram.com/p/MAP/",
+            caption="",
+            thumbnail_url=None,
+            published_at=None,
+            like_count=None,
+            comment_count=None,
+            view_count=None,
+            position=0,
+            raw_payload={},
+        )
+        media.id = "media-row-mapping"
+
+        asset = CrawledAsset(
+            external_id="asset-mapping",
+            asset_type="image",
+            source_url="https://example.com/image.jpg",
+            position=0,
+            width=100,
+            height=100,
+            duration_seconds=None,
+            is_available=asset_available,
+            asset_metadata={},
+        )
+        asset.id = "asset-row-mapping"
+        asset.media = media
+
+        item = ImportDraftItem(
+            draft_id="draft-mapping",
+            crawled_media_id=media.id,
+            position=0,
+            is_selected=item_selected,
+        )
+        item.id = "draft-item-mapping"
+        item.media = media
+
+        product_data = ImportDraftProductData(
+            draft_item_id=item.id,
+            product_name="Mapping Product",
+            description="Description",
+            sale_price=None,
+            list_price=None,
+            stock=1,
+            colors=[],
+            sizes=[],
+        )
+        item.product_data = product_data
+
+        selected_asset = ImportDraftAsset(
+            draft_item_id=item.id,
+            crawled_asset_id=asset.id,
+            position=0,
+            is_selected=True,
+            is_primary=True,
+        )
+        selected_asset.id = "selected-asset-mapping"
+        selected_asset.asset = asset
+
+        item.selected_assets.append(
+            selected_asset
+        )
+
+        return item
+
+    def test_mapper_excludes_unavailable_selected_asset(
+        self,
+    ) -> None:
+        item = self._build_asset_mapping_item(
+            item_selected=True,
+            asset_available=False,
+        )
+
+        payload = (
+            SeloraPayloadMapper()
+            ._build_media_payload(
+                item=item,
+            )
+        )
+
+        self.assertEqual(
+            payload["assets"],
+            [],
+        )
+
+        self.assertEqual(
+            payload["draft"]["selected_assets"],
+            [],
+        )
+
+    def test_mapper_clears_selected_assets_for_unselected_item(
+        self,
+    ) -> None:
+        item = self._build_asset_mapping_item(
+            item_selected=False,
+            asset_available=True,
+        )
+
+        payload = (
+            SeloraPayloadMapper()
+            ._build_media_payload(
+                item=item,
+            )
+        )
+
+        self.assertEqual(
+            len(payload["assets"]),
+            1,
+        )
+
+        self.assertEqual(
+            payload["draft"]["selected_assets"],
+            [],
+        )
+
