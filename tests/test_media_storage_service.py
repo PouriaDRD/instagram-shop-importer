@@ -149,3 +149,46 @@ def test_existing_storage_is_reused_even_if_source_url_changes(
     assert service._has_persisted_file(
         asset=asset
     )
+
+
+def test_persist_source_can_be_limited_to_selected_assets(
+    tmp_path: Path,
+) -> None:
+    service = InstagramMediaStorageService(
+        root_path=str(tmp_path),
+        timeout_seconds=5,
+        max_bytes=1024 * 1024,
+    )
+    selected = _asset()
+    unrelated = _asset()
+    selected.media = SimpleNamespace(shortcode="SELECTED")
+    unrelated.media = SimpleNamespace(shortcode="UNRELATED")
+    source = SimpleNamespace(
+        id=str(uuid.uuid4()),
+        username="shop",
+    )
+
+    with (
+        patch.object(
+            service,
+            "_persist_asset",
+        ) as persist_asset,
+        patch(
+            "app.services.media_storage_service.db.session.commit",
+        ) as commit,
+    ):
+        result = service.persist_source(
+            source=source,
+            assets=[selected],
+        )
+
+    persist_asset.assert_called_once_with(
+        asset=selected,
+        username="shop",
+        shortcode="SELECTED",
+    )
+    commit.assert_called_once_with()
+    assert result.saved == 1
+    assert result.reused == 0
+    assert result.failed == 0
+    assert unrelated.local_file_status == "missing"
