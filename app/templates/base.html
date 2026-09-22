@@ -40,6 +40,11 @@
             <a href="{{ url_for('web.index') }}" class="app-nav__link {% if request.endpoint == 'web.index' %}is-active{% endif %}">شروع کراول</a>
 
             <a href="{{ url_for('web.crawl_list') }}" class="app-nav__link {% if request.endpoint in ['web.crawl_list', 'web.crawl_detail'] %}is-active{% endif %}">نشست‌ها</a>
+
+            <form action="{{ url_for('runtime_safe_exit') }}" method="post" onsubmit="return confirm('از Selora Importer به‌صورت امن خارج می‌شوید. ادامه می‌دهید؟');">
+              <input type="hidden" name="token" value="{{ safe_exit_token }}" />
+              <button type="submit" class="button button--secondary button--small">خروج امن</button>
+            </form>
           </nav>
         </div>
       </header>

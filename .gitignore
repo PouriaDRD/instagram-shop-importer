@@ -5,6 +5,7 @@ geoip/*.mmdb
 # data
 instagram-browser-profile
 
+
 data/*.csv
 data/*.db
 data/*.sqlite3
@@ -69,6 +70,7 @@ var/
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+!SeloraInstagramImporter.spec
 
 # Installer logs
 pip-log.txt

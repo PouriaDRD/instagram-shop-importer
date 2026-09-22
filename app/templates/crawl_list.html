@@ -21,7 +21,7 @@
 
       <h1 class="page-title">نشست‌های کراول</h1>
 
-      <p class="page-description">تاریخچه‌ی پیج‌هایی که برای استخراج و انتقال به سلورا بررسی شده‌اند.</p>
+      <p class="page-description">وضعیت کراول و وضعیت ارسال هر نشست به سلورا به‌صورت مستقل نمایش داده می‌شود.</p>
     </div>
 
     <a href="{{ url_for('web.index') }}" class="button button--primary page-header__action">کراول جدید</a>
@@ -35,7 +35,9 @@
             <tr>
               <th>پیج</th>
 
-              <th>وضعیت</th>
+              <th>وضعیت کراول</th>
+
+              <th>وضعیت سلورا</th>
 
               <th>محتوا</th>
 
@@ -49,6 +51,7 @@
 
           <tbody>
             {% for crawl_session in sessions %}
+              {% set selora_state = session_selora_status(crawl_session.id) %}
               <tr>
                 <td>
                   <div class="session-profile">
@@ -68,18 +71,36 @@
 
                 <td>
                   {% if crawl_session.status == 'completed' %}
-                    <span class="status-badge status-badge--completed">تکمیل‌شده</span>
+                    <span class="status-badge status-badge--completed">کراول تکمیل‌شده</span>
                   {% elif crawl_session.status == 'running' %}
                     <span class="status-badge status-badge--running">
                       <span class="status-badge__dot status-badge__dot--pulse" aria-hidden="true"></span>
 
-                      در حال اجرا
+                      در حال کراول
                     </span>
                   {% elif crawl_session.status == 'failed' %}
-                    <span class="status-badge status-badge--failed">ناموفق</span>
+                    <span class="status-badge status-badge--failed">خطای کراول</span>
                   {% else %}
-                    <span class="status-badge status-badge--pending">در انتظار</span>
+                    <span class="status-badge status-badge--pending">در انتظار کراول</span>
                   {% endif %}
+                </td>
+
+                <td>
+                  <div>
+                    <span class="status-badge status-badge--{{ selora_state.badge_class }}">{{ selora_state.sync_label }}</span>
+
+                    {% if selora_state.workflow_label %}
+                      <div class="session-profile__username" style="margin-top: 6px;">{{ selora_state.workflow_label }}</div>
+                    {% elif selora_state.has_remote_workspace and selora_state.sync_status != 'synced' %}
+                      <div class="session-profile__username" style="margin-top: 6px;">Workspace سلورا ایجاد شده</div>
+                    {% endif %}
+
+                    {% if selora_state.last_synced_at %}
+                      <div class="session-profile__username" style="margin-top: 4px;">
+                        آخرین ارسال موفق: {{ selora_state.last_synced_at|iran_date }} - {{ selora_state.last_synced_at|iran_time }}
+                      </div>
+                    {% endif %}
+                  </div>
                 </td>
 
                 <td>
@@ -121,8 +142,16 @@
 
               {% if crawl_session.status == 'failed' and crawl_session.error_message %}
                 <tr class="session-error-row">
-                  <td colspan="6">
-                    <div class="session-error-message">{{ crawl_session.error_message }}</div>
+                  <td colspan="7">
+                    <div class="session-error-message">خطای کراول: {{ crawl_session.error_message }}</div>
+                  </td>
+                </tr>
+              {% endif %}
+
+              {% if selora_state.error %}
+                <tr class="session-error-row">
+                  <td colspan="7">
+                    <div class="session-error-message">خطای آخرین ارسال به سلورا: {{ selora_state.error }}</div>
                   </td>
                 </tr>
               {% endif %}
