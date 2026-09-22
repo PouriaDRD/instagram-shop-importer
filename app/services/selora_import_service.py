@@ -335,11 +335,20 @@ class SeloraImportService:
             max_bytes=Config.INSTAGRAM_MEDIA_STORAGE_MAX_BYTES,
         )
 
-        if any(
-            not self._stored_file_exists(storage_service=storage_service, asset=asset)
+        missing_assets = [
+            asset
             for asset in selected_assets
-        ):
-            storage_service.persist_source(source=crawl_session)
+            if not self._stored_file_exists(
+                storage_service=storage_service,
+                asset=asset,
+            )
+        ]
+
+        if missing_assets:
+            storage_service.persist_source(
+                source=crawl_session,
+                assets=missing_assets,
+            )
 
         pending: list[PendingAssetUpload] = []
         derivative_service = (
