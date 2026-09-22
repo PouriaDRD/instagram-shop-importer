@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
@@ -56,27 +57,40 @@ class InstagramMediaStorageService:
         self,
         *,
         source: InstagramSource,
+        assets: Iterable[InstagramAsset] | None = None,
     ) -> MediaStorageResult:
-        assets = tuple(
-            db.session.scalars(
-                select(InstagramAsset)
-                .join(
-                    InstagramMedia,
-                    InstagramAsset.media_id
-                    == InstagramMedia.id,
-                )
-                .where(
-                    InstagramMedia.source_id
-                    == source.id,
-                    InstagramAsset.is_available.is_(True),
-                )
-                .order_by(
-                    InstagramMedia.position,
-                    InstagramAsset.position,
-                    InstagramAsset.id,
-                )
-            ).all()
-        )
+        """
+        Persist media files for a source.
+
+        When ``assets`` is provided, only those assets are processed. This is
+        important for interactive send flows: a draft may select only a small
+        subset of a source, and unrelated unavailable CDN assets must not delay
+        or fail that send.
+        """
+
+        if assets is None:
+            persisted_assets = tuple(
+                db.session.scalars(
+                    select(InstagramAsset)
+                    .join(
+                        InstagramMedia,
+                        InstagramAsset.media_id
+                        == InstagramMedia.id,
+                    )
+                    .where(
+                        InstagramMedia.source_id
+                        == source.id,
+                        InstagramAsset.is_available.is_(True),
+                    )
+                    .order_by(
+                        InstagramMedia.position,
+                        InstagramAsset.position,
+                        InstagramAsset.id,
+                    )
+                ).all()
+            )
+        else:
+            persisted_assets = tuple(assets)
 
         logger.info(
             (
@@ -85,7 +99,7 @@ class InstagramMediaStorageService:
             ),
             source.id,
             source.username,
-            len(assets),
+            len(persisted_assets),
             self._root,
         )
 
@@ -93,7 +107,7 @@ class InstagramMediaStorageService:
         reused = 0
         failed = 0
 
-        for asset in assets:
+        for asset in persisted_assets:
             media = asset.media
 
             try:
