@@ -376,6 +376,16 @@ def start_crawl() -> ResponseReturnValue:
                 400,
             )
 
+    sort_order = request.form.get("sort_order", "newest").strip()
+    if sort_order not in {"newest", "oldest"}:
+        return (
+            jsonify({
+                "error": "invalid_sort_order",
+                "message": "ترتیب استخراج محتوا معتبر نیست.",
+            }),
+            400,
+        )
+
     service = CrawlService(
         provider=PlaywrightInstagramProvider(),
         repository=CrawlSessionRepository(),
@@ -397,11 +407,19 @@ def start_crawl() -> ResponseReturnValue:
 
     flask_app = current_app.app_context().app
     runner = BackgroundCrawlRunner()
-    runner.start(
-        app=flask_app,
-        session_id=crawl_session.id,
-        max_items=max_items,
-    )
+    if sort_order == "newest":
+        runner.start(
+            app=flask_app,
+            session_id=crawl_session.id,
+            max_items=max_items,
+        )
+    else:
+        runner.start(
+            app=flask_app,
+            session_id=crawl_session.id,
+            max_items=max_items,
+            sort_order=sort_order,
+        )
 
     return (
         jsonify(

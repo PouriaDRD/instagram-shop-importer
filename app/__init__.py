@@ -58,6 +58,12 @@ def create_app() -> Flask:
 
     register_template_helpers(app)
 
+    # All application instances (including tests and embedded use) must have
+    # the Selora session-status helper required by crawl_list.html.
+    from app.services.session_status_service import register_session_status_helpers
+
+    register_session_status_helpers(app)
+
     register_routes(app)
 
     register_http_logging(app)

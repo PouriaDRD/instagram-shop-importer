@@ -286,3 +286,18 @@ def test_favicon_does_not_return_404(
     response = client.get("/favicon.ico")
 
     assert response.status_code == 200
+
+
+def test_invalid_sort_order_returns_400(client: FlaskClient) -> None:
+    response = client.post("/crawl", data={
+        "username": "testshop", "max_items": "20", "sort_order": "random"
+    })
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "invalid_sort_order"
+
+
+def test_crawl_form_offers_chronological_sort(client: FlaskClient) -> None:
+    html = client.get("/").get_data(as_text=True)
+    assert 'name="sort_order"' in html
+    assert 'value="oldest"' in html
+    assert 'value="newest"' in html

@@ -26,14 +26,18 @@ class BackgroundCrawlRunner:
         app: Flask,
         session_id: str,
         max_items: int | None,
+        sort_order: str = "newest",
     ) -> None:
+        kwargs = {
+            "app": app,
+            "session_id": session_id,
+            "max_items": max_items,
+        }
+        if sort_order != "newest":
+            kwargs["sort_order"] = sort_order
         thread = threading.Thread(
             target=self._run,
-            kwargs={
-                "app": app,
-                "session_id": session_id,
-                "max_items": max_items,
-            },
+            kwargs=kwargs,
             name=f"crawl-{session_id}",
             daemon=True,
         )
@@ -46,6 +50,7 @@ class BackgroundCrawlRunner:
         app: Flask,
         session_id: str,
         max_items: int | None,
+        sort_order: str = "newest",
     ) -> None:
         app_context = app.app_context()
         context_pushed = False
@@ -62,10 +67,14 @@ class BackgroundCrawlRunner:
                     repository=repository,
                 )
 
-                service.run(
-                    session_id=session_id,
-                    max_items=max_items,
-                )
+                if sort_order == "newest":
+                    service.run(session_id=session_id, max_items=max_items)
+                else:
+                    service.run(
+                        session_id=session_id,
+                        max_items=max_items,
+                        sort_order=sort_order,
+                    )
 
             except Exception as exc:
                 logger.exception(

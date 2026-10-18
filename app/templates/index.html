@@ -137,7 +137,18 @@
           <input id="max_items" name="max_items" type="number" class="form-input form-input--ltr" value="5" min="1" max="100" inputmode="numeric" required />
         </div>
 
-        <p class="form-help">برای تست اولیه بهتر است ۲ تا ۵ آیتم انتخاب کنید.</p>
+        <p class="form-help">بین ۱ تا ۱۰۰ مورد. اگر اینستاگرام محتوای بیشتری بارگذاری نکند، علت در نتیجه نمایش داده می‌شود.</p>
+      </div>
+
+      <div class="form-field">
+        <label for="sort_order" class="form-label">ترتیب استخراج محتوا</label>
+        <div class="input-wrapper">
+          <select id="sort_order" name="sort_order" class="form-input" required>
+            <option value="newest" selected>از جدید به قدیم</option>
+            <option value="oldest">از قدیم به جدید</option>
+          </select>
+        </div>
+        <p class="form-help">«قدیمی‌ترین» نیازمند پیمایش تمام محتوای قابل‌دسترسی پیج است؛ ممکن است طولانی‌تر شود یا اینستاگرام دسترسی را محدود کند.</p>
       </div>
 
       <div class="crawl-form__actions">
@@ -201,6 +212,7 @@
       const usernameInput = document.getElementById('username')
     
       const maxItemsInput = document.getElementById('max_items')
+      const sortOrderInput = document.getElementById('sort_order')
     
       const submitButton = document.getElementById('crawlSubmitButton')
     
@@ -212,7 +224,7 @@
     
       const statusDescription = document.getElementById('crawlStatusDescription')
     
-      if (!form || !usernameInput || !maxItemsInput || !submitButton || !buttonText || !statusBox || !statusTitle || !statusDescription) {
+      if (!form || !usernameInput || !maxItemsInput || !sortOrderInput || !submitButton || !buttonText || !statusBox || !statusTitle || !statusDescription) {
         console.error('Crawl UI initialization failed.')
     
         return
@@ -241,6 +253,7 @@
     
         usernameInput.disabled = true
         maxItemsInput.disabled = true
+        sortOrderInput.disabled = true
     
         buttonText.textContent = 'در حال جست‌وجو...'
     
@@ -262,6 +275,7 @@
     
         usernameInput.disabled = false
         maxItemsInput.disabled = false
+        sortOrderInput.disabled = false
     
         buttonText.textContent = 'شروع کراول'
       }
@@ -382,6 +396,12 @@
           return
         }
     
+        if (!['newest', 'oldest'].includes(sortOrderInput.value)) {
+          showError('ترتیب استخراج نامعتبر است.')
+
+          return
+        }
+
         const confirmation = window.confirm('مطمئن باشید به اینستاگرام دسترسی دارید.\n\n' + 'آیا اتصال برقرار است؟')
     
         if (!confirmation) {

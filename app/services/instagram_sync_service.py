@@ -74,7 +74,11 @@ class InstagramSyncService:
         source_id: str | None = None,
         session_id: str | None = None,
         max_items: int | None = None,
+        sort_order: str = "newest",
     ) -> None:
+        if sort_order not in {"newest", "oldest"}:
+            raise ValueError("Unsupported Instagram media sort order.")
+
         effective_id = source_id or session_id
 
         if not effective_id:
@@ -117,12 +121,20 @@ class InstagramSyncService:
                 profile=profile,
             )
 
-            media_items = (
-                self._provider.fetch_media(
+            if sort_order == "oldest":
+                # Only the concrete provider's oldest mode requires a complete
+                # pagination history. Keep the old provider protocol compatible.
+                media_items = self._provider.fetch_media(
+                    username=username,
+                    max_items=max_items,
+                    sort_order="oldest",
+                    expected_media_count=profile.media_count,
+                )
+            else:
+                media_items = self._provider.fetch_media(
                     username=username,
                     max_items=max_items,
                 )
-            )
 
             self._persist_media(
                 source=source,

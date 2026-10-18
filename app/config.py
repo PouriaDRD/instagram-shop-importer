@@ -251,6 +251,13 @@ class Config:
         default="",
     )
 
+    # Explicit, operator-owned Instagram login session. The JSON contains
+    # session cookies: keep under ignored instance/ and never log its data.
+    INSTAGRAM_AUTH_STATE_PATH: str = get_env_str(
+        "INSTAGRAM_AUTH_STATE_PATH",
+        default="instance/instagram_auth/storage_state.json",
+    )
+
     # ========================================================
     # Persistent local Instagram media storage
     # ========================================================

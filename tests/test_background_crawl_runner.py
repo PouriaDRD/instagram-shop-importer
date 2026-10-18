@@ -422,3 +422,23 @@ def test_recovery_empty_error_uses_class_name(
         session=session,
         error_message="RuntimeError",
     )
+
+
+def test_start_forwards_oldest_to_worker(app: Flask) -> None:
+    runner = BackgroundCrawlRunner()
+    with patch("app.services.background_crawl_runner.threading.Thread") as thread_class:
+        runner.start(app=app, session_id="old-session", max_items=30, sort_order="oldest")
+    assert thread_class.call_args.kwargs["kwargs"]["sort_order"] == "oldest"
+
+
+def test_worker_forwards_oldest_to_service(app: Flask) -> None:
+    repository = MagicMock()
+    service = MagicMock()
+    with (
+        patch("app.services.background_crawl_runner.CrawlSessionRepository", return_value=repository),
+        patch("app.services.background_crawl_runner.CrawlService", return_value=service),
+        patch("app.services.background_crawl_runner.PlaywrightInstagramProvider"),
+        patch("app.services.background_crawl_runner.db.session.remove"),
+    ):
+        BackgroundCrawlRunner._run(app=app, session_id="old-session", max_items=30, sort_order="oldest")
+    service.run.assert_called_once_with(session_id="old-session", max_items=30, sort_order="oldest")

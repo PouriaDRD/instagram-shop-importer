@@ -51,9 +51,11 @@ DEFAULT_VIEWPORT_HEIGHT: Final[int] = 1000
 
 PROFILE_SETTLE_MS: Final[int] = 2500
 MEDIA_SETTLE_MS: Final[int] = 1800
-SCROLL_SETTLE_MS: Final[int] = 800
+SCROLL_SETTLE_MS: Final[int] = 1100
 
-MAX_SCROLL_ROUNDS: Final[int] = 80
+MAX_SCROLL_ROUNDS: Final[int] = 120
+MAX_UNCHANGED_SCROLL_ROUNDS: Final[int] = 6
+PINNED_MEDIA_OVERSCAN: Final[int] = 3
 
 
 class PlaywrightInstagramProvider:
@@ -136,7 +138,12 @@ class PlaywrightInstagramProvider:
         *,
         username: str,
         max_items: int | None = None,
+        sort_order: str = "newest",
+        expected_media_count: int | None = None,
     ) -> tuple[InstagramMediaDTO, ...]:
+        if sort_order not in {"newest", "oldest"}:
+            raise ValueError("Unsupported Instagram media sort order.")
+
         normalized_username = self._normalize_username(username)
 
         if max_items is not None:
@@ -155,8 +162,54 @@ class PlaywrightInstagramProvider:
                 media_urls = self._discover_media_urls(
                     page=page,
                     username=normalized_username,
-                    max_items=max_items,
+                    max_items=(
+                        None if sort_order == "oldest" else (
+                            None if max_items is None else max_items + PINNED_MEDIA_OVERSCAN
+                        )
+                    ),
                 )
+
+                # Use the profile metadata when a caller has not supplied a
+                # total (e.g. direct provider callers).
+                known_total = expected_media_count
+                if sort_order == "oldest" and known_total is None:
+                    known_total = self._profile_dto_from_metadata(
+                        page=page,
+                        username=normalized_username,
+                    ).media_count
+
+                if (
+                    sort_order == "oldest"
+                    and known_total is not None
+                    and len(media_urls) < known_total
+                ):
+                    raise InstagramMediaFetchError(
+                        f"Instagram exposed {len(media_urls)} of "
+                        f"{known_total} posts. Cannot guarantee "
+                        "the oldest posts until profile pagination reaches "
+                        "the end. No existing data was overwritten."
+                    )
+
+                if max_items is not None and sort_order == "oldest":
+                    # Pinned posts may be ancient; include the first 3 along
+                    # with the tail of the chronological grid.
+                    candidates = (*media_urls[:PINNED_MEDIA_OVERSCAN],
+                                  *media_urls[-max_items:])
+                    media_urls = tuple(dict.fromkeys(candidates))
+
+                # Fail before spending a minute opening detail pages if the
+                # required number of distinct URLs was never discovered.
+                # The sync service must not overwrite a complete prior crawl
+                # with an incomplete 12-tile public preview.
+                if max_items is not None and len(media_urls) < max_items:
+                    raise InstagramMediaFetchError(
+                        f"Instagram made only {len(media_urls)} of the requested "
+                        f"{max_items} unique posts accessible. "
+                        "Pagination did not reveal more posts. If this account "
+                        "has more posts, connect a signed-in Instagram browser "
+                        "via CONNECT_INSTAGRAM.ps1 and retry. Existing data "
+                        "was not changed."
+                    )
 
                 logger.info(
                     "Found %s media for @%s",
@@ -206,7 +259,42 @@ class PlaywrightInstagramProvider:
                 )
             ) from exc
 
-        return tuple(media_items)
+        # Date-based ordering corrects pinned content and mixed post/reel
+        # grids. Unknown timestamps are always last; ties are stable.
+        unique: dict[str, InstagramMediaDTO] = {}
+        for media in media_items:
+            unique.setdefault(media.shortcode, media)
+
+        ordered = sorted(
+            unique.values(),
+            key=lambda media: self._media_chronological_key(
+                media=media, sort_order=sort_order
+            ),
+        )
+        if max_items is not None:
+            ordered = ordered[:max_items]
+            if len(ordered) < max_items:
+                raise InstagramMediaFetchError(
+                    f"Instagram made only {len(ordered)} of the requested "
+                    f"{max_items} unique posts accessible. The profile "
+                    "may have fewer posts, may require login, or its feed "
+                    "stopped paginating. Existing data was not changed."
+                )
+        return tuple(ordered)
+
+    @staticmethod
+    def _media_chronological_key(
+        *,
+        media: InstagramMediaDTO,
+        sort_order: str,
+    ) -> tuple[int, float]:
+        timestamp = media.published_at
+        if timestamp is None:
+            return (1, 0.0)
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        unix = timestamp.timestamp()
+        return (0, unix if sort_order == "oldest" else -unix)
 
     # =========================================================
     # Browser lifecycle
@@ -254,20 +342,31 @@ class PlaywrightInstagramProvider:
                 **launch_options,
             )
 
+            # A freshly created, anonymous context is often restricted to
+            # Instagram's first 12 public tiles. Reuse only an explicitly
+            # connected operator session; do not read their normal Chrome
+            # profile, ask for passwords, or persist cookies in logs.
+            session_path = Path(Config.INSTAGRAM_AUTH_STATE_PATH).expanduser()
+            context_options: dict[str, Any] = {}
+            if session_path.is_file():
+                context_options["storage_state"] = str(session_path)
+                logger.info("Instagram browser session: saved operator state")
+            else:
+                logger.info(
+                    "Instagram browser session: anonymous (may expose only 12 posts); "
+                    "connect via CONNECT_INSTAGRAM.ps1"
+                )
+
             context = browser.new_context(
+                **context_options,
                 locale="en-US",
                 viewport={
                     "width": (DEFAULT_VIEWPORT_WIDTH),
                     "height": (DEFAULT_VIEWPORT_HEIGHT),
                 },
-                user_agent=(
-                    "Mozilla/5.0 "
-                    "(Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) "
-                    "Chrome/140.0.0.0 "
-                    "Safari/537.36"
-                ),
+                # Use the actual installed Chrome/Chromium user agent. A
+                # fixed Chrome/140 UA on newer Chrome versions can make an
+                # existing login look like it came from a different browser.
             )
 
             context.set_default_timeout(self._timeout_ms)
@@ -726,9 +825,17 @@ class PlaywrightInstagramProvider:
         discovered_set: set[str] = set()
 
         unchanged_rounds = 0
-        previous_count = 0
+        clicked_more = 0
+        try:
+            signed_in = any(
+                cookie.get("name") == "sessionid"
+                for cookie in page.context.cookies(INSTAGRAM_BASE_URL)
+            )
+        except Exception:
+            signed_in = False
 
-        for _ in range(MAX_SCROLL_ROUNDS):
+        for scroll_round in range(MAX_SCROLL_ROUNDS):
+            previous_count = len(discovered)
             self._collect_media_links(
                 page=page,
                 result=discovered,
@@ -738,29 +845,111 @@ class PlaywrightInstagramProvider:
             if max_items is not None and len(discovered) >= max_items:
                 break
 
-            if len(discovered) == previous_count:
+            if len(discovered) > previous_count:
+                unchanged_rounds = 0
+            elif scroll_round > 0:
                 unchanged_rounds += 1
 
-            else:
-                unchanged_rounds = 0
-                previous_count = len(discovered)
+            # Check explicit pagination both before and after scrolling:
+            # Instagram may render the control at the grid's end before the
+            # next scroll, and anonymous sessions may never receive it.
+            if self._click_show_more_posts(page=page, username=username):
+                clicked_more += 1
+                logger.info(
+                    "Expanded Instagram profile posts @%s; click=%s; discovered=%s",
+                    username, clicked_more, len(discovered),
+                )
+                page.wait_for_timeout(SCROLL_SETTLE_MS)
 
-            if unchanged_rounds >= 3:
+            if unchanged_rounds >= MAX_UNCHANGED_SCROLL_ROUNDS:
+                logger.warning(
+                    "Profile pagination stalled @%s: count=%s rounds=%s "
+                    "authenticated=%s show_more_clicks=%s current_url=%s. "
+                    "If anonymous, connect Instagram via CONNECT_INSTAGRAM.ps1.",
+                    username, len(discovered), scroll_round, signed_in,
+                    clicked_more, page.url,
+                )
                 break
 
-            page.evaluate("""
-                window.scrollTo(
-                    0,
-                    document.body.scrollHeight
-                )
-                """)
-
+            self._scroll_profile_media_grid(page=page)
             page.wait_for_timeout(SCROLL_SETTLE_MS)
+
+        # Content may have loaded during the final scroll. Capture it too.
+        self._collect_media_links(
+            page=page,
+            result=discovered,
+            seen=discovered_set,
+        )
 
         if max_items is not None:
             discovered = discovered[:max_items]
 
         return tuple(discovered)
+
+    @staticmethod
+    def _click_show_more_posts(*, page: Page, username: str) -> bool:
+        """Expand the Instagram profile grid through its explicit load-more button.
+
+        The relevant element is a ``div[role=button]`` whose accessible name
+        is ``Show more posts from <username>``. Instagram's generated CSS
+        classes are intentionally NOT used because they change regularly.
+        Only the requested profile's own button is considered.
+
+        Returns whether a click was dispatched; it does not assert new posts
+        appeared. The caller must verify new unique shortcodes separately.
+        """
+        label = re.compile(
+            rf"^\s*Show\s+more\s+posts\s+from\s+@?{re.escape(username)}\s*$",
+            flags=re.IGNORECASE,
+        )
+        button = page.get_by_role("button", name=label).first
+        try:
+            if not button.is_visible():
+                return False
+            button.scroll_into_view_if_needed(timeout=4000)
+            button.click(timeout=5000)
+        except PlaywrightTimeoutError:
+            logger.warning(
+                "Instagram load-more button was visible but could not be clicked @%s",
+                username,
+            )
+            return False
+        return True
+
+    def _scroll_profile_media_grid(self, *, page: Page) -> None:
+        """Scroll the actual profile grid, not only document.body.
+
+        Instagram can use a nested scroll container and infinite grid
+        virtualization. Bringing the last item into view triggers the
+        IntersectionObserver responsible for fetching subsequent pages.
+        """
+        anchors = page.locator('a[href*="/p/"], a[href*="/reel/"]')
+        try:
+            if anchors.count():
+                anchors.last.scroll_into_view_if_needed(timeout=2500)
+        except PlaywrightTimeoutError:
+            logger.debug("Last media tile detached during lazy pagination")
+
+        # Actual wheel interaction also works when body has no scrollbar.
+        page.mouse.wheel(0, DEFAULT_VIEWPORT_HEIGHT * 2)
+        page.evaluate("""() => {
+          const tiles = document.querySelectorAll(
+            'a[href*="/p/"], a[href*="/reel/"]');
+          const tile = tiles[tiles.length - 1];
+          if (tile) {
+            let node = tile.parentElement;
+            while (node && node !== document.documentElement) {
+              const style = getComputedStyle(node);
+              if (/(auto|scroll)/.test(style.overflowY) &&
+                  node.scrollHeight > node.clientHeight + 2) {
+                node.scrollTop = node.scrollHeight;
+                break;
+              }
+              node = node.parentElement;
+            }
+          }
+          window.scrollTo(0, document.documentElement.scrollHeight);
+        }""")
 
     def _collect_media_links(
         self,
@@ -782,10 +971,12 @@ class PlaywrightInstagramProvider:
             if normalized is None:
                 continue
 
-            if normalized in seen:
+            # /p/CODE/ and /reel/CODE/ are one media identity.
+            shortcode = self._shortcode_from_url(normalized)
+            if shortcode in seen:
                 continue
 
-            seen.add(normalized)
+            seen.add(shortcode)
 
             result.append(normalized)
 
