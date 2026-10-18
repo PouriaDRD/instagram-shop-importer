@@ -141,6 +141,19 @@
       </div>
 
       <div class="form-field">
+        <label for="instagram_account" class="form-label">حساب مورد استفاده</label>
+        <select name="instagram_account" id="instagram_account" class="form-input">
+          <option value="">بدون ورود (ممکن است فقط ۱۲ پست نمایش داده شود)</option>
+          {% for account in operator_accounts %}
+            {% if account.saved_session %}
+              <option value="{{ account.id }}">{{ account.label }} — نشست ذخیره‌شده</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+        <p class="form-help">برای پست‌های بیشتر، ابتدا از بخش <a href="{{ url_for('web.instagram_accounts_page') }}" style="color:var(--color-primary);font-weight:700">حساب‌های اینستاگرام</a>، حساب اپراتور را متصل و سپس اینجا انتخاب کنید.</p>
+      </div>
+
+      <div class="form-field">
         <label for="sort_order" class="form-label">ترتیب استخراج محتوا</label>
         <div class="input-wrapper">
           <select id="sort_order" name="sort_order" class="form-input" required>
@@ -213,6 +226,7 @@
     
       const maxItemsInput = document.getElementById('max_items')
       const sortOrderInput = document.getElementById('sort_order')
+      const accountInput = document.getElementById('instagram_account')
     
       const submitButton = document.getElementById('crawlSubmitButton')
     
@@ -254,6 +268,7 @@
         usernameInput.disabled = true
         maxItemsInput.disabled = true
         sortOrderInput.disabled = true
+        if (accountInput) accountInput.disabled = true
     
         buttonText.textContent = 'در حال جست‌وجو...'
     
@@ -276,6 +291,7 @@
         usernameInput.disabled = false
         maxItemsInput.disabled = false
         sortOrderInput.disabled = false
+        if (accountInput) accountInput.disabled = false
     
         buttonText.textContent = 'شروع کراول'
       }
@@ -402,12 +418,6 @@
           return
         }
 
-        const confirmation = window.confirm('مطمئن باشید به اینستاگرام دسترسی دارید.\n\n' + 'آیا اتصال برقرار است؟')
-    
-        if (!confirmation) {
-          return
-        }
-    
         /*
          * FormData را قبل از disabled کردن inputها می‌سازیم.
          * input غیرفعال داخل FormData قرار نمی‌گیرد.

@@ -26,6 +26,9 @@ def make_media(shortcode: str, day: int | None) -> InstagramMediaDTO:
 def profile_page(batches: list[list[str]]) -> tuple[MagicMock, object]:
     """Each scroll exposes a new grid batch, as happens on Instagram."""
     page = MagicMock()
+    # Page.url is always a string in real Playwright; make the mock realistic
+    # so cookie-consent navigation can safely inspect the visited address.
+    page.url = f"{INSTAGRAM_BASE_URL}/shop/"
     index = [0]
     page.goto.return_value.status = 200
     # By default, the profile does not expose an expandable-post button.

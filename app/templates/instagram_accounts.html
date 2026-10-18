@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+{% block title %}حساب‌های اینستاگرام | Selora Importer{% endblock %}
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/instagram_accounts.css') }}" />
+  <meta name="instagram-accounts-token" content="{{ instagram_csrf }}" />
+{% endblock %}
+{% block content %}
+<div class="ig-accounts" data-start-url="{{ url_for('web.instagram_accounts_start') }}">
+  <div class="ig-accounts__head">
+    <div>
+      <span class="ig-accounts__eyebrow">OPERATOR WORKSPACE · INSTAGRAM</span>
+      <h1>حساب‌های اینستاگرام</h1>
+      <p>هر اپراتور حساب خودش را یک‌بار در سایت اینستاگرام متصل می‌کند و بعد در زمان کراول همان حساب را انتخاب می‌کند.</p>
+    </div>
+    <a class="ig-accounts__back" href="{{ url_for('web.index') }}">بازگشت به کراول <span aria-hidden="true">←</span></a>
+  </div>
+
+  <div class="ig-accounts__layout">
+    <section class="ig-accounts__panel" aria-labelledby="connect-title">
+      <div class="ig-accounts__panel-top">
+        <span class="ig-accounts__step">01</span>
+        <span class="ig-accounts__tag"><span class="ig-accounts__dot"></span> اتصال امن</span>
+      </div>
+      <h2 id="connect-title">اتصال حساب جدید</h2>
+      <p>یک نام دلخواه برای شناسایی حساب وارد کن. مثلاً «حساب اپراتور فروش» یا «اکانت دوم».</p>
+      <form id="igConnectForm" autocomplete="off">
+        <label for="igAccountLabel">نام نمایشی حساب</label>
+        <input id="igAccountLabel" name="label" type="text" minlength="2" maxlength="50" required placeholder="مثلاً حساب اپراتور اول" />
+        <button id="igConnectButton" type="submit" class="ig-accounts__primary">
+          <span class="ig-accounts__primary-icon" aria-hidden="true">↗</span>
+          باز کردن اینستاگرام و ورود
+        </button>
+      </form>
+      <div class="ig-accounts__status" id="igLoginStatus" role="status" aria-live="polite" hidden>
+        <div class="ig-accounts__status-top">
+          <span id="igStatusTitle">در حال آماده‌سازی مرورگر…</span>
+          <span class="ig-accounts__activity" id="igStatusActivity" aria-hidden="true"></span>
+        </div>
+        <p id="igStatusMessage"></p>
+        <button id="igCancelButton" class="ig-accounts__cancel" type="button" hidden>لغو اتصال</button>
+      </div>
+      <div class="ig-accounts__steps">
+        <div><span>۱</span><p>پنجره Chrome باز می‌شود.</p></div>
+        <div><span>۲</span><p>داخل خود Instagram وارد حساب و کد دومرحله‌ای شو.</p></div>
+        <div><span>۳</span><p>اتصال به‌طور خودکار شناسایی و نشست ذخیره می‌شود.</p></div>
+      </div>
+    </section>
+
+    <section class="ig-accounts__panel ig-accounts__panel--list" aria-labelledby="connected-title">
+      <div class="ig-accounts__panel-top">
+        <span class="ig-accounts__step">02</span>
+        <span class="ig-accounts__count">{{ operator_accounts|length }} حساب ثبت‌شده</span>
+      </div>
+      <h2 id="connected-title">حساب‌های این دستگاه</h2>
+      <p>حساب‌های ذخیره‌شده را هنگام شروع کراول از فهرست انتخاب کن.</p>
+      {% if operator_accounts %}
+        <div class="ig-accounts__list">
+          {% for account in operator_accounts %}
+            <div class="ig-accounts__account">
+              <div class="ig-accounts__avatar" aria-hidden="true">{{ account.label[0] }}</div>
+              <div class="ig-accounts__details">
+                <strong>{{ account.label }}</strong>
+                {% if account.saved_session %}
+                  <span class="ig-accounts__connected"><i></i> نشست ورود ذخیره‌شده</span>
+                {% else %}
+                  <span class="ig-accounts__expired">نشست قابل استفاده نیست؛ دوباره متصل کن</span>
+                {% endif %}
+              </div>
+              <button class="ig-accounts__remove" type="button" data-remove-id="{{ account.id }}" data-remove-url="{{ url_for('web.instagram_accounts_remove', account_id=account.id) }}" title="حذف نشست از دستگاه">حذف</button>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="ig-accounts__empty">
+          <span aria-hidden="true">◎</span>
+          <strong>هنوز حسابی متصل نشده است.</strong>
+          <p>بعد از اتصال، حساب‌ها اینجا نمایش داده می‌شوند.</p>
+        </div>
+      {% endif %}
+      <div class="ig-accounts__security">
+        <strong>حریم خصوصی حساب‌ها</strong>
+        <p>رمز عبور یا کد تأیید به سلورا داده نمی‌شود. فقط کوکی نشست، به‌صورت محلی در پوشه محافظت‌شده برنامه ذخیره می‌شود. حذف حساب از این صفحه، نشست محلی را پاک می‌کند، نه نشست‌های فعال در سرور اینستاگرام.</p>
+      </div>
+    </section>
+  </div>
+  <p class="ig-accounts__footnote">این برنامه روی کامپیوتر فعلی اجرا می‌شود؛ اگر چند اپراتور از یک حساب ویندوز استفاده می‌کنند، نشست‌ها برای همان کاربر ویندوز قابل‌دسترسی‌اند. برای جداسازی واقعی دسترسی، پروفایل‌های جداگانه ویندوز یا ورود مستقل به خود Importer لازم است.</p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  'use strict'
+  const form = document.getElementById('igConnectForm')
+  const label = document.getElementById('igAccountLabel')
+  const startButton = document.getElementById('igConnectButton')
+  const statusBox = document.getElementById('igLoginStatus')
+  const statusTitle = document.getElementById('igStatusTitle')
+  const statusMessage = document.getElementById('igStatusMessage')
+  const activity = document.getElementById('igStatusActivity')
+  const cancelButton = document.getElementById('igCancelButton')
+  const token = document.querySelector('meta[name="instagram-accounts-token"]').content
+  const headers = {'Content-Type': 'application/json', 'X-Instagram-Accounts-Token': token}
+  let jobId = null
+  let pollTimeout = null
+  const show = (title, message, mode = 'loading') => {
+    statusBox.hidden = false
+    statusBox.dataset.mode = mode
+    statusTitle.textContent = title
+    statusMessage.textContent = message
+    activity.hidden = mode !== 'loading'
+    cancelButton.hidden = mode !== 'loading'
+  }
+  const finish = () => {
+    startButton.disabled = false
+    label.disabled = false
+    cancelButton.hidden = true
+  }
+  const request = async (url, body = {}) => {
+    const response = await fetch(url, {method: 'POST', credentials: 'same-origin', headers, body: JSON.stringify(body)})
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(data.message || 'درخواست انجام نشد.')
+    return data
+  }
+  const poll = async () => {
+    if (!jobId) return
+    try {
+      const response = await fetch(`{{ url_for('web.instagram_accounts_page') }}/status/${encodeURIComponent(jobId)}`, {cache:'no-store', credentials:'same-origin'})
+      if (!response.ok) throw new Error('ارتباط با برنامه برقرار نشد.')
+      const job = await response.json()
+      if (job.state === 'connected') {
+        show('اتصال انجام شد', job.message, 'success')
+        finish()
+        pollTimeout = setTimeout(() => location.reload(), 1800)
+        return
+      }
+      if (job.state === 'failed' || job.state === 'cancelled') {
+        show(job.state === 'cancelled' ? 'ورود لغو شد' : 'اتصال انجام نشد', job.message, 'error')
+        finish()
+        return
+      }
+      show('در انتظار ورود به اینستاگرام', job.message)
+    } catch (error) {
+      show('در حال تلاش مجدد', error.message || 'ارتباط موقتاً قطع شد.')
+    }
+    pollTimeout = setTimeout(poll, 1600)
+  }
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    if (!form.reportValidity()) return
+    clearTimeout(pollTimeout)
+    jobId = null
+    startButton.disabled = true
+    label.disabled = true
+    show('در حال باز کردن Chrome', 'یک پنجره جدید برای ورود به سایت رسمی Instagram باز می‌شود.')
+    try {
+      const data = await request(form.closest('.ig-accounts').dataset.startUrl, {label:label.value})
+      jobId = data.id
+      poll()
+    } catch (error) {
+      show('خطا در شروع اتصال', error.message, 'error')
+      finish()
+    }
+  })
+  cancelButton.addEventListener('click', async () => {
+    if (!jobId) return
+    cancelButton.disabled = true
+    try {
+      await request(`{{ url_for('web.instagram_accounts_page') }}/cancel/${encodeURIComponent(jobId)}`)
+      show('در حال لغو', 'پنجره ورود در حال بسته‌شدن است.')
+    } catch (error) {
+      show('لغو انجام نشد', error.message, 'error')
+    } finally { cancelButton.disabled = false }
+  })
+  document.querySelectorAll('[data-remove-id]').forEach(button => {
+    button.addEventListener('click', async () => {
+      if (!confirm('نشست محلی این حساب از همین دستگاه حذف شود؟')) return
+      button.disabled = true
+      try {
+        await request(button.dataset.removeUrl)
+        location.reload()
+      } catch (error) {
+        alert(error.message)
+        button.disabled = false
+      }
+    })
+  })
+})()
+</script>
+{% endblock %}

@@ -27,6 +27,7 @@ class BackgroundCrawlRunner:
         session_id: str,
         max_items: int | None,
         sort_order: str = "newest",
+        auth_state_path: str | None = None,
     ) -> None:
         kwargs = {
             "app": app,
@@ -35,6 +36,8 @@ class BackgroundCrawlRunner:
         }
         if sort_order != "newest":
             kwargs["sort_order"] = sort_order
+        if auth_state_path is not None:
+            kwargs["auth_state_path"] = auth_state_path
         thread = threading.Thread(
             target=self._run,
             kwargs=kwargs,
@@ -51,6 +54,7 @@ class BackgroundCrawlRunner:
         session_id: str,
         max_items: int | None,
         sort_order: str = "newest",
+        auth_state_path: str | None = None,
     ) -> None:
         app_context = app.app_context()
         context_pushed = False
@@ -62,8 +66,13 @@ class BackgroundCrawlRunner:
             repository = CrawlSessionRepository()
 
             try:
+                provider = (
+                    PlaywrightInstagramProvider(auth_state_path=auth_state_path)
+                    if auth_state_path is not None
+                    else PlaywrightInstagramProvider()
+                )
                 service = CrawlService(
-                    provider=PlaywrightInstagramProvider(),
+                    provider=provider,
                     repository=repository,
                 )
 

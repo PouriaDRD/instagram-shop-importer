@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 from playwright.sync_api import (
     Browser,
     BrowserContext,
+    Error as PlaywrightError,
     Page,
     Playwright,
     TimeoutError as PlaywrightTimeoutError,
@@ -57,6 +58,19 @@ MAX_SCROLL_ROUNDS: Final[int] = 120
 MAX_UNCHANGED_SCROLL_ROUNDS: Final[int] = 6
 PINNED_MEDIA_OVERSCAN: Final[int] = 3
 
+# Only on the official Instagram cookie-consent route. This intentionally does
+# not match "essential cookies only", "decline" or broad "Continue" buttons.
+_COOKIE_ACCEPT_LABEL: Final[re.Pattern[str]] = re.compile(
+    r"^\s*(?:Allow\s+all(?:\s+cookies)?|Allow\s+essential\s+and\s+optional\s+cookies"
+    r"|Accept\s+all(?:\s+cookies)?|Accept\s+cookies"
+    r"|Allow\s+optional\s+cookies|Accept\s+optional\s+cookies"
+    r"|پذیرش\s+همه(?:\s+کوکی[‌\s]*ها)?|قبول\s+همه(?:\s+کوکی[‌\s]*ها)?"
+    r"|Permitir\s+todas\s+las\s+cookies|Aceptar\s+todas\s+las\s+cookies"
+    r"|Alle\s+Cookies\s+zulassen|Alle\s+Cookies\s+akzeptieren)"
+    r"(?:\s+on\s+Instagram)?\s*$",
+    flags=re.IGNORECASE,
+)
+
 
 class PlaywrightInstagramProvider:
     """
@@ -82,7 +96,11 @@ class PlaywrightInstagramProvider:
         *,
         headless: bool | None = None,
         timeout_ms: int | None = None,
+        auth_state_path: str | None = None,
     ) -> None:
+        # A path supplied for a job is pinned for that entire crawl and must
+        # not silently fall back to a different operator or anonymous state.
+        self._explicit_auth_state_path = auth_state_path
         self._headless = Config.PLAYWRIGHT_HEADLESS if headless is None else headless
 
         self._timeout_ms = (
@@ -207,7 +225,7 @@ class PlaywrightInstagramProvider:
                         f"{max_items} unique posts accessible. "
                         "Pagination did not reveal more posts. If this account "
                         "has more posts, connect a signed-in Instagram browser "
-                        "via CONNECT_INSTAGRAM.ps1 and retry. Existing data "
+                        "from the Instagram Accounts page and retry. Existing data "
                         "was not changed."
                     )
 
@@ -346,16 +364,27 @@ class PlaywrightInstagramProvider:
             # Instagram's first 12 public tiles. Reuse only an explicitly
             # connected operator session; do not read their normal Chrome
             # profile, ask for passwords, or persist cookies in logs.
-            session_path = Path(Config.INSTAGRAM_AUTH_STATE_PATH).expanduser()
+            # Explicit empty string means *anonymous*: never reuse a legacy
+            # global session when the form has no operator account selected.
+            session_path = (
+                None if self._explicit_auth_state_path == ""
+                else Path(
+                    self._explicit_auth_state_path
+                    if self._explicit_auth_state_path is not None
+                    else Config.INSTAGRAM_AUTH_STATE_PATH
+                ).expanduser()
+            )
             context_options: dict[str, Any] = {}
-            if session_path.is_file():
+            if session_path is not None and session_path.is_file():
                 context_options["storage_state"] = str(session_path)
-                logger.info("Instagram browser session: saved operator state")
-            else:
-                logger.info(
-                    "Instagram browser session: anonymous (may expose only 12 posts); "
-                    "connect via CONNECT_INSTAGRAM.ps1"
+                logger.info("Instagram browser session: operator session loaded")
+            elif self._explicit_auth_state_path not in (None, ""):
+                raise InstagramAuthenticationRequiredError(
+                    "The selected operator Instagram session is missing. "
+                    "Reconnect the account from the account manager."
                 )
+            else:
+                logger.info("Instagram browser session: anonymous")
 
             context = browser.new_context(
                 **context_options,
@@ -371,7 +400,7 @@ class PlaywrightInstagramProvider:
 
             context.set_default_timeout(self._timeout_ms)
 
-        except PlaywrightTimeoutError:
+        except (PlaywrightTimeoutError, InstagramAuthenticationRequiredError):
             self._cleanup_browser_resources(
                 context=context,
                 browser=browser,
@@ -494,6 +523,78 @@ class PlaywrightInstagramProvider:
             )
 
     # =========================================================
+    # Instagram cookie-consent navigation
+    # =========================================================
+
+    @staticmethod
+    def _is_instagram_cookie_consent_url(url: str) -> bool:
+        """Recognize only Instagram's consent route, never lookalike domains."""
+        parsed = urlparse(url)
+        return (
+            parsed.scheme == "https"
+            and parsed.hostname in {"instagram.com", "www.instagram.com"}
+            and parsed.path.rstrip("/") == "/consent"
+        )
+
+    @classmethod
+    def _accept_instagram_cookie_consent(cls, *, page: Page) -> bool:
+        """On Instagram's consent route, explicitly choose *all* cookies.
+
+        The operator opted in to automatic acceptance through the importer.
+        Never click an arbitrary Continue/Accept button on other sites or pages.
+        An unfamiliar consent UI must fail visibly, rather than produce 0 posts.
+        """
+        if not cls._is_instagram_cookie_consent_url(page.url):
+            return False
+
+        logger.info("Instagram cookie consent detected; accepting all cookies")
+        # The consent app can hydrate slightly after DOMContentLoaded.
+        for _ in range(3):
+            for role in ("button", "link"):
+                try:
+                    control = page.get_by_role(role, name=_COOKIE_ACCEPT_LABEL).first
+                    if not control.is_visible(timeout=1200):
+                        continue
+                    control.click(timeout=5000)
+                    page.wait_for_timeout(500)
+                    logger.info("Instagram cookie consent choice submitted")
+                    return True
+                except (PlaywrightTimeoutError, PlaywrightError):
+                    continue
+            page.wait_for_timeout(650)
+
+        raise InstagramAuthenticationRequiredError(
+            "Instagram opened its cookie-consent page, but an 'Allow all "
+            "cookies' control could not be found or clicked automatically. "
+            "The operator account was not modified."
+        )
+
+    def _goto_instagram_page(self, *, page: Page, url: str) -> Any:
+        """Navigate to a profile/media URL, resolving Instagram cookie consent.
+
+        Consent is handled before page validation or discovery, so it cannot be
+        mistaken for a profile containing zero posts. Retry at most twice.
+        """
+        if urlparse(url).hostname not in {"instagram.com", "www.instagram.com"}:
+            raise ValueError("Navigation target must be an Instagram URL.")
+        for _ in range(3):
+            response = page.goto(
+                url,
+                wait_until="domcontentloaded",
+                timeout=self._timeout_ms,
+            )
+            page.wait_for_timeout(700)
+            if not self._is_instagram_cookie_consent_url(page.url):
+                return response
+            self._accept_instagram_cookie_consent(page=page)
+            page.wait_for_timeout(700)
+
+        raise InstagramAuthenticationRequiredError(
+            "Instagram redirected back to its cookie-consent page after "
+            "automatic acceptance. Reconnect the Instagram operator account."
+        )
+
+    # =========================================================
     # Profile
     # =========================================================
 
@@ -505,11 +606,7 @@ class PlaywrightInstagramProvider:
     ) -> InstagramProfileDTO:
         profile_url = f"{INSTAGRAM_BASE_URL}/" f"{username}/"
 
-        response = page.goto(
-            profile_url,
-            wait_until="domcontentloaded",
-            timeout=self._timeout_ms,
-        )
+        response = self._goto_instagram_page(page=page, url=profile_url)
 
         page.wait_for_timeout(PROFILE_SETTLE_MS)
 
@@ -807,11 +904,7 @@ class PlaywrightInstagramProvider:
     ) -> tuple[str, ...]:
         profile_url = f"{INSTAGRAM_BASE_URL}/" f"{username}/"
 
-        response = page.goto(
-            profile_url,
-            wait_until="domcontentloaded",
-            timeout=self._timeout_ms,
-        )
+        response = self._goto_instagram_page(page=page, url=profile_url)
 
         page.wait_for_timeout(PROFILE_SETTLE_MS)
 
@@ -865,7 +958,7 @@ class PlaywrightInstagramProvider:
                 logger.warning(
                     "Profile pagination stalled @%s: count=%s rounds=%s "
                     "authenticated=%s show_more_clicks=%s current_url=%s. "
-                    "If anonymous, connect Instagram via CONNECT_INSTAGRAM.ps1.",
+                    "If anonymous, connect from the Instagram Accounts page.",
                     username, len(discovered), scroll_round, signed_in,
                     clicked_more, page.url,
                 )
@@ -993,11 +1086,7 @@ class PlaywrightInstagramProvider:
         shortcode = self._shortcode_from_url(media_url)
 
         try:
-            response = page.goto(
-                media_url,
-                wait_until="domcontentloaded",
-                timeout=self._timeout_ms,
-            )
+            response = self._goto_instagram_page(page=page, url=media_url)
 
             page.wait_for_timeout(MEDIA_SETTLE_MS)
 

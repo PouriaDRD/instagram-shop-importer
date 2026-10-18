@@ -34,7 +34,7 @@ def has_session_cookie(cookies: list[dict[str, object]]) -> bool:
     return any(
         item.get("name") == "sessionid"
         and item.get("value")
-        and "instagram.com" in str(item.get("domain", ""))
+        and str(item.get("domain", "")).lstrip(".").lower() == "instagram.com"
         for item in cookies
     )
 

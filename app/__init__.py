@@ -58,6 +58,17 @@ def create_app() -> Flask:
 
     register_template_helpers(app)
 
+    # Local operator Instagram sessions are intentionally held outside the
+    # database and never exposed through the browser UI.
+    from app.services.instagram_operator_accounts import InstagramOperatorAccounts
+    from app.services.instagram_operator_login import InstagramOperatorLogin
+
+    operator_accounts = InstagramOperatorAccounts(instance_path / "instagram_operator_accounts")
+    app.extensions["instagram_operator_accounts"] = operator_accounts
+    app.extensions["instagram_operator_login"] = InstagramOperatorLogin(operator_accounts)
+    import secrets
+    app.extensions["instagram_operator_csrf"] = secrets.token_urlsafe(32)
+
     # All application instances (including tests and embedded use) must have
     # the Selora session-status helper required by crawl_list.html.
     from app.services.session_status_service import register_session_status_helpers

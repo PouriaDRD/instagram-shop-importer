@@ -41,6 +41,8 @@
 
             <a href="{{ url_for('web.crawl_list') }}" class="app-nav__link {% if request.endpoint in ['web.crawl_list', 'web.crawl_detail'] %}is-active{% endif %}">نشست‌ها</a>
 
+            <a href="{{ url_for('web.instagram_accounts_page') }}" class="app-nav__link {% if request.endpoint == 'web.instagram_accounts_page' %}is-active{% endif %}">حساب‌های اینستاگرام</a>
+
             {# Only the desktop runtime installs the safe-exit controller.
                Standalone Flask/test instances must never render a dead route. #}
             {% if safe_exit_token is defined %}

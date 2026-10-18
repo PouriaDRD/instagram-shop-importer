@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
+import secrets
+from urllib.parse import urlsplit
 
 from flask import (
     Blueprint,
@@ -245,7 +247,8 @@ from app.services.selora_upload_checkpoint_service import (
 
 @web_bp.get("/")
 def index() -> str:
-    return render_template("index.html")
+    accounts = current_app.extensions["instagram_operator_accounts"].list_accounts()
+    return render_template("index.html", operator_accounts=accounts)
 
 
 @web_bp.get("/favicon.ico")
@@ -386,6 +389,17 @@ def start_crawl() -> ResponseReturnValue:
             400,
         )
 
+    account_id = request.form.get("instagram_account", "").strip()
+    auth_state_path = None
+    if account_id:
+        from app.services.instagram_operator_accounts import AccountSelectionError
+        try:
+            auth_state_path = str(
+                current_app.extensions["instagram_operator_accounts"].get_state_path(account_id)
+            )
+        except AccountSelectionError as exc:
+            return jsonify({"error": "invalid_instagram_account", "message": str(exc)}), 400
+
     service = CrawlService(
         provider=PlaywrightInstagramProvider(),
         repository=CrawlSessionRepository(),
@@ -407,19 +421,17 @@ def start_crawl() -> ResponseReturnValue:
 
     flask_app = current_app.app_context().app
     runner = BackgroundCrawlRunner()
-    if sort_order == "newest":
-        runner.start(
-            app=flask_app,
-            session_id=crawl_session.id,
-            max_items=max_items,
-        )
-    else:
-        runner.start(
-            app=flask_app,
-            session_id=crawl_session.id,
-            max_items=max_items,
-            sort_order=sort_order,
-        )
+    runner_options = {
+        "app": flask_app,
+        "session_id": crawl_session.id,
+        "max_items": max_items,
+    }
+    if sort_order != "newest":
+        runner_options["sort_order"] = sort_order
+    # Pin either the selected account or explicit anonymous mode for the job.
+    # A legacy global session must not silently become another operator's ID.
+    runner_options["auth_state_path"] = auth_state_path or ""
+    runner.start(**runner_options)
 
     return (
         jsonify(
@@ -1583,3 +1595,88 @@ def _normalize_numeric_input(value: str) -> str:
 def _split_values(value: str) -> tuple[str, ...]:
     normalized = value.replace("،", ",")
     return tuple(part.strip() for part in normalized.split(",") if part.strip())
+
+# Instagram accounts: a loopback-only, CSRF-protected local account manager.
+
+def _instagram_ui_allowed(*, mutation: bool) -> bool:
+    if (request.remote_addr or "") not in {"127.0.0.1", "::1"}:
+        return False
+    host = urlsplit(request.host_url).hostname
+    if host not in {"127.0.0.1", "localhost", "::1"}:
+        return False
+    if mutation:
+        origin = request.headers.get("Origin")
+        if origin and origin.rstrip("/") != request.host_url.rstrip("/"):
+            return False
+        return (request.is_json and secrets.compare_digest(
+            request.headers.get("X-Instagram-Accounts-Token", ""),
+            current_app.extensions["instagram_operator_csrf"],
+        ))
+    return True
+
+
+@web_bp.get("/instagram/accounts")
+def instagram_accounts_page() -> ResponseReturnValue:
+    if not _instagram_ui_allowed(mutation=False):
+        abort(403)
+    response = current_app.make_response(render_template(
+        "instagram_accounts.html",
+        operator_accounts=current_app.extensions["instagram_operator_accounts"].list_accounts(),
+        instagram_csrf=current_app.extensions["instagram_operator_csrf"],
+    ))
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
+
+@web_bp.post("/instagram/accounts/start")
+def instagram_accounts_start() -> ResponseReturnValue:
+    if not _instagram_ui_allowed(mutation=True):
+        abort(403)
+    from app.services.instagram_operator_login import LoginAlreadyRunning
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"message": "ورودی معتبر نیست."}), 400
+    label = data.get("label", "")
+    if not isinstance(label, str):
+        return jsonify({"message": "نام حساب معتبر نیست."}), 400
+    try:
+        job = current_app.extensions["instagram_operator_login"].start(label)
+    except LoginAlreadyRunning as exc:
+        return jsonify({"message": str(exc)}), 409
+    except ValueError as exc:
+        return jsonify({"message": str(exc)}), 400
+    return jsonify(job), 202
+
+
+@web_bp.get("/instagram/accounts/status/<job_id>")
+def instagram_accounts_status(job_id: str) -> ResponseReturnValue:
+    if not _instagram_ui_allowed(mutation=False):
+        abort(403)
+    try:
+        job = current_app.extensions["instagram_operator_login"].status(job_id)
+    except LookupError:
+        abort(404)
+    response = jsonify(job)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@web_bp.post("/instagram/accounts/cancel/<job_id>")
+def instagram_accounts_cancel(job_id: str) -> ResponseReturnValue:
+    if not _instagram_ui_allowed(mutation=True):
+        abort(403)
+    try:
+        current_app.extensions["instagram_operator_login"].cancel(job_id)
+    except LookupError:
+        abort(404)
+    return jsonify({"ok": True})
+
+
+@web_bp.post("/instagram/accounts/remove/<account_id>")
+def instagram_accounts_remove(account_id: str) -> ResponseReturnValue:
+    if not _instagram_ui_allowed(mutation=True):
+        abort(403)
+    if not current_app.extensions["instagram_operator_accounts"].remove(account_id):
+        abort(404)
+    return jsonify({"ok": True})

@@ -132,6 +132,13 @@ class SafeShutdownController:
                 self._condition.wait(timeout=1.0)
 
         try:
+            login_manager = self._app.extensions.get("instagram_operator_login")
+            if login_manager is not None:
+                login_manager.shutdown()
+        except Exception:
+            logger.exception("Safe shutdown could not cancel Instagram sign-in")
+
+        try:
             self._release_remote_locks()
         except Exception:
             logger.exception("Safe shutdown could not release every remote lock")

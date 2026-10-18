@@ -264,3 +264,25 @@ Recommended update flow:
 ## License
 
 Licensed under the MIT License.
+
+## Instagram accounts for desktop operators
+
+On the local Importer, open **حساب‌های اینستاگرام** in the navigation menu.
+Each operator adds a clearly labeled Instagram account, signs in exclusively on
+`instagram.com` in the separate Chrome window, and waits for the UI to confirm
+that the local session has been saved. Two-factor authentication is handled by
+Instagram, never by Selora. The operator then selects the saved account on the
+crawl form; the selected storage-state path is pinned for that crawl job.
+
+Accounts are stored separately under `instance/instagram_operator_accounts/`
+(ignored by Git). Neither credentials nor cookies are stored in the database
+or returned by the account-management endpoints. A graceful Importer shutdown
+cancels any outstanding login window. Removing an account deletes
+its **local** session; operators should separately use Instagram's security
+settings if they need to revoke a server-side session. If operators share a
+Windows login, the OS does not isolate their browser sessions: use distinct
+Windows user accounts or add Importer authentication for strict separation.
+
+This does not guarantee all Instagram posts will be available: the platform can
+still enforce rate limits, security checkpoints, or content access controls.
+The old `CONNECT_INSTAGRAM.ps1` remains available for legacy single-session use.
