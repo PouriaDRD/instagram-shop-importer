@@ -1,4 +1,4 @@
-﻿{% extends 'base.html' %}
+{% extends 'base.html' %}
 
 {% block title %}
   @{{ crawl_session.username }} | Selora Importer
@@ -599,7 +599,7 @@
 
 {% block breadcrumb %}
   <nav class="page-breadcrumb" aria-label="مسیر صفحه">
-    <a href="{{ url_for('web.index') }}">شروع کراول</a>
+    <a href="{{ url_for('web.crawl_new') }}">شروع کراول</a>
     <span class="page-breadcrumb__separator">/</span>
     <a href="{{ url_for('web.crawl_list') }}">نشست‌ها</a>
     <span class="page-breadcrumb__separator">/</span>
@@ -675,6 +675,50 @@
           </div>
         </div>
       </div>
+    </section>
+
+    <section class="run-report" aria-labelledby="runReportTitle">
+      <div class="run-report__heading">
+        <div><span class="eyebrow">گزارش دقیق کراول</span><h2 id="runReportTitle">نتیجه آخرین اجرا</h2></div>
+        <a class="button button--secondary button--small" href="{{ url_for('web.crawl_retry', session_id=crawl_session.id) }}">↻ شروع دوباره</a>
+      </div>
+      {% if crawl_run_reports %}
+        {% set latest = crawl_run_reports[0] %}
+        <div class="run-report__metadata">
+          {% if latest.status == 'completed' %}<span class="status-badge status-badge--completed">تکمیل‌شده</span>
+          {% elif latest.status == 'cancelled' %}<span class="status-badge status-badge--pending">متوقف‌شده</span>
+          {% elif latest.status == 'failed' %}<span class="status-badge status-badge--failed">ناموفق</span>
+          {% elif latest.status == 'interrupted' %}<span class="status-badge status-badge--failed">قطع‌شده هنگام خروج</span>
+          {% else %}<span class="status-badge status-badge--running">در حال اجرا</span>{% endif %}
+          <span>{{ 'با حساب اینستاگرام' if latest.signed_in else 'بدون ورود' }}</span>
+          {% if latest.duration_seconds is not none %}<span>زمان اجرا: {{ latest.duration_seconds }} ثانیه</span>{% endif %}
+          <span>تعداد درخواستی: {{ latest.requested_posts if latest.requested_posts is not none else 'تمام موارد موجود' }}</span>
+        </div>
+        <div class="run-report__stats">
+          <div><strong>{{ latest.discovered_candidates }}</strong><span>کاندید کشف‌شده</span></div>
+          <div><strong>{{ latest.detail_succeeded }}</strong><span>جزئیات موفق</span></div>
+          <div><strong>{{ latest.selected_posts }}</strong><span>پست انتخاب‌شده</span></div>
+          <div><strong>{{ latest.synced_posts }}</strong><span>پست ثبت‌شده در این اجرا</span></div>
+          <div><strong>{{ latest.download_saved }}</strong><span>فایل دانلودشده</span></div>
+          <div><strong>{{ latest.download_reused }}</strong><span>فایل استفاده‌شده از کش</span></div>
+          <div><strong>{{ latest.download_failed }}</strong><span>فایل ناموفق</span></div>
+          <div><strong>{{ (latest.bytes_downloaded / 1048576)|round(1) }}</strong><span>مگابایت دانلود جدید</span></div>
+        </div>
+        {% if latest.detail_failed %}<p class="run-report__warning">جزئیات {{ latest.detail_failed }} کاندید در این اجرا دریافت نشد.</p>{% endif %}
+        {% if latest.warning %}<p class="run-report__warning">{{ latest.warning }}</p>{% endif %}
+        <p class="run-report__help">تعداد کاندیدها ممکن است تا ۳ مورد بیشتر از تعداد درخواستی باشد؛ این بررسی اضافه برای مرتب‌سازی پست‌های پین‌شده است. تعداد محتوای نمایش‌داده‌شده در ادامه صفحه نیز ممکن است بیشتر از «پست ثبت‌شده در این اجرا» باشد؛ محتوای سالم اجراهای پیشین عمداً حذف نشده است.</p>
+        {% if crawl_run_reports|length > 1 %}
+          <details class="run-report__history"><summary>مشاهده تاریخچه {{ crawl_run_reports|length }} اجرا</summary>
+            <div class="run-report__history-list">
+              {% for run in crawl_run_reports %}
+              <div><strong>{{ run.started_at[:19].replace('T', ' ') }}</strong><span>{{ 'موفق' if run.status == 'completed' else ('متوقف' if run.status == 'cancelled' else ('ناموفق' if run.status == 'failed' else ('قطع‌شده' if run.status == 'interrupted' else 'در حال اجرا'))) }}</span><span>{{ run.synced_posts }} پست</span><span>{{ run.download_saved }} دریافت جدید</span></div>
+              {% endfor %}
+            </div>
+          </details>
+        {% endif %}
+      {% else %}
+        <p class="run-report__help">این نشست قبل از فعال‌سازی گزارش مستقل اجرا ایجاد شده است. اجرای بعدی گزارش کامل خواهد داشت.</p>
+      {% endif %}
     </section>
 
     {% if crawl_session.status == 'failed' and crawl_session.error_message %}

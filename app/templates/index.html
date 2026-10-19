@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block title %}
-  شروع کراول | ایمپورتر سلورا
+  شروع کراول جدید | ایمپورتر سلورا
 {% endblock %}
 
 {% block head %}
@@ -117,113 +117,40 @@
 {% endblock %}
 
 {% block content %}
-  <section class="hero">
-    <div class="hero__content">
-      <span class="eyebrow">ابزار انتقال فروشگاه اینستاگرامی</span>
-
-      <h1 class="hero__title">انتقال فروشگاه اینستاگرامی به سلورا</h1>
-
-      <p class="hero__description">نام کاربری پیج اینستاگرام را وارد کنید تا محتوای فروشگاه استخراج و برای بررسی و ویرایش آماده شود.</p>
-    </div>
+<div class="im-start">
+  <nav class="im-start__breadcrumb" aria-label="مسیر صفحه"><a href="{{ url_for('web.index') }}">داشبورد</a><span aria-hidden="true">/</span><span aria-current="page">شروع کراول</span></nav>
+  <section class="im-start__header" aria-labelledby="crawlHeading">
+    <div><span class="im-section-kicker">ساخت یک استخراج جدید</span><h1 id="crawlHeading">شروع کراول اینستاگرام</h1><p>پیج مقصد و تنظیمات استخراج را انتخاب کن. پس از دریافت، محتوا برای بازبینی و انتقال به سلورا آماده می‌شود.</p></div>
+    <a class="im-start__back" href="{{ url_for('web.crawl_list') }}">مشاهده نشست‌ها <span aria-hidden="true">←</span></a>
   </section>
-
-  <section class="card crawl-card">
-    <form id="crawlForm" method="post" action="{{ url_for('web.start_crawl') }}" class="crawl-form">
-      <div class="form-field">
-        <label for="username" class="form-label">پیج اینستاگرام</label>
-
-        <div class="input-wrapper">
-          <span class="input-prefix" aria-hidden="true">@</span>
-
-          <input id="username" name="username" type="text" class="form-input form-input--ltr" placeholder="mahtabbeauty" autocomplete="off" autocapitalize="off" spellcheck="false" required />
+  <div class="im-start__layout">
+    <section class="im-start__main" aria-labelledby="configTitle">
+      <form id="crawlForm" method="post" action="{{ url_for('web.start_crawl') }}" class="im-form crawl-form">
+        {% if retry_username %}
+        <div class="im-retry-note" role="status"><span aria-hidden="true">↻</span><div><strong>تلاش مجدد برای <span dir="ltr">@{{ retry_username }}</span></strong><p>تنظیمات را دوباره بررسی کن؛ حساب قبلی به‌صورت خودکار انتخاب نمی‌شود.</p></div></div>
+        {% endif %}
+        <div class="im-form__section">
+          <div class="im-form__heading"><span class="im-step-number">۰۱</span><div><h2 id="configTitle">انتخاب پیج</h2><p>نام کاربری فروشگاهی که می‌خواهی استخراج کنی.</p></div></div>
+          <div class="form-field im-field"><label for="username" class="form-label">نام کاربری اینستاگرام <span class="im-required">*</span></label><div class="input-wrapper im-username-field"><span class="input-prefix" aria-hidden="true">@</span><input id="username" name="username" type="text" class="form-input form-input--ltr" placeholder="yourshop" value="{{ retry_username|default('') }}" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="255" required aria-describedby="usernameHelp" /></div><p id="usernameHelp" class="form-help">فقط آیدی پیج را وارد کن؛ نیازی به لینک کامل اینستاگرام نیست.</p></div>
         </div>
-      </div>
-
-      <div class="form-field">
-        <label for="max_items" class="form-label">تعداد محتوا برای دریافت</label>
-
-        <div class="input-wrapper">
-          <input id="max_items" name="max_items" type="number" class="form-input form-input--ltr" value="5" min="1" max="100" inputmode="numeric" required />
+        <div class="im-form__section">
+          <div class="im-form__heading"><span class="im-step-number">۰۲</span><div><h2>تنظیمات استخراج</h2><p>محدوده، ترتیب و نحوه دسترسی به محتوا.</p></div></div>
+          <div class="im-form__fields">
+            <div class="form-field im-field"><label for="max_items" class="form-label">تعداد پست و ریلز <span class="im-required">*</span></label><input id="max_items" name="max_items" type="number" class="form-input form-input--ltr" value="5" min="1" max="100" inputmode="numeric" required aria-describedby="maxHelp"/><p id="maxHelp" class="form-help">بین ۱ تا ۱۰۰ محتوا. دسترسی نهایی به اینستاگرام بستگی دارد.</p></div>
+            <div class="form-field im-field"><label for="sort_order" class="form-label">ترتیب استخراج</label><select id="sort_order" name="sort_order" class="form-input" required data-custom-select data-placeholder="ترتیب استخراج"><option value="newest" selected>جدیدترین پست‌ها اول</option><option value="oldest">قدیمی‌ترین پست‌ها اول</option></select><p class="form-help">حالت قدیمی‌ترین نیازمند بررسی کل تاریخچه قابل‌دسترسی است.</p></div>
+          </div>
+          <div class="form-field im-field im-field--account"><div class="im-field__label-row"><label for="instagram_account" class="form-label">حساب اینستاگرام اپراتور</label><a href="{{ url_for('web.instagram_accounts_page') }}">مدیریت حساب‌ها ←</a></div><select name="instagram_account" id="instagram_account" class="form-input" data-custom-select data-placeholder="انتخاب حساب متصل"><option value="">بدون ورود (دسترسی محدودتر)</option>{% for account in operator_accounts %}{% if account.saved_session %}<option value="{{ account.id }}">{{ account.label }} — نشست ذخیره‌شده</option>{% endif %}{% endfor %}</select><p class="form-help">برای پست‌های بیشتر، یک حساب متصل انتخاب کن. رمز و کد تأیید فقط در خود اینستاگرام وارد می‌شوند.</p></div>
         </div>
-
-        <p class="form-help">بین ۱ تا ۱۰۰ مورد. اگر اینستاگرام محتوای بیشتری بارگذاری نکند، علت در نتیجه نمایش داده می‌شود.</p>
-      </div>
-
-      <div class="form-field">
-        <label for="instagram_account" class="form-label">حساب مورد استفاده</label>
-        <select name="instagram_account" id="instagram_account" class="form-input" data-custom-select data-placeholder="انتخاب حساب اینستاگرام">
-          <option value="">بدون ورود (ممکن است فقط ۱۲ پست نمایش داده شود)</option>
-          {% for account in operator_accounts %}
-            {% if account.saved_session %}
-              <option value="{{ account.id }}">{{ account.label }} — نشست ذخیره‌شده</option>
-            {% endif %}
-          {% endfor %}
-        </select>
-        <p class="form-help">برای پست‌های بیشتر، ابتدا از بخش <a href="{{ url_for('web.instagram_accounts_page') }}" style="color:var(--color-primary);font-weight:700">حساب‌های اینستاگرام</a>، حساب اپراتور را متصل و سپس اینجا انتخاب کنید.</p>
-      </div>
-
-      <div class="form-field">
-        <label for="sort_order" class="form-label">ترتیب استخراج محتوا</label>
-        <div class="input-wrapper">
-          <select id="sort_order" name="sort_order" class="form-input" required data-custom-select data-placeholder="انتخاب ترتیب استخراج">
-            <option value="newest" selected>از جدید به قدیم</option>
-            <option value="oldest">از قدیم به جدید</option>
-          </select>
-        </div>
-        <p class="form-help">«قدیمی‌ترین» نیازمند پیمایش تمام محتوای قابل‌دسترسی پیج است؛ ممکن است طولانی‌تر شود یا اینستاگرام دسترسی را محدود کند.</p>
-      </div>
-
-      <div class="crawl-form__actions">
-        <button id="crawlSubmitButton" type="submit" class="button button--primary crawl-submit">
-          <span class="crawl-submit__content">
-            <span class="crawl-submit__spinner" aria-hidden="true"></span>
-
-            <span id="crawlButtonText">شروع کراول</span>
-          </span>
-        </button>
-        <button id="crawlStopButton" type="button" class="crawl-stop">توقف کراول</button>
-      </div>
-
-      <div id="crawlStatus" class="crawl-status" role="status" aria-live="polite">
-        <div class="crawl-status__spinner" aria-hidden="true"></div>
-
-        <div class="crawl-status__content">
-          <p id="crawlStatusTitle" class="crawl-status__title">در حال جست‌وجو...</p>
-
-          <p id="crawlStatusDescription" class="crawl-status__description">در حال آماده‌سازی کراول هستیم.</p>
-          <div id="crawlProgressTrack" class="crawl-progress-track" role="progressbar"
-               aria-label="پیشرفت کراول" aria-valuemin="0" aria-valuemax="100"
-               aria-valuenow="0"><div id="crawlProgressFill" class="crawl-progress-fill"></div></div>
-        </div>
-      </div>
-    </form>
-  </section>
-
-  <section class="feature-grid">
-    <article class="feature-card">
-      <div class="feature-card__number">01</div>
-
-      <h2 class="feature-card__title">استخراج محتوا</h2>
-
-      <p class="feature-card__description">پست‌ها، ریلزها، آلبوم‌ها و رسانه‌های پیج دریافت می‌شوند.</p>
-    </article>
-
-    <article class="feature-card">
-      <div class="feature-card__number">02</div>
-
-      <h2 class="feature-card__title">بررسی و ویرایش</h2>
-
-      <p class="feature-card__description">محتوا و تصاویر را قبل از ارسال انتخاب و ویرایش می‌کنید.</p>
-    </article>
-
-    <article class="feature-card">
-      <div class="feature-card__number">03</div>
-
-      <h2 class="feature-card__title">ارسال به سلورا</h2>
-
-      <p class="feature-card__description">خروجی نهایی به‌صورت Draft به API سلورا ارسال می‌شود.</p>
-    </article>
-  </section>
+        <div class="im-form__footer"><div class="im-form__footer-copy"><strong>آماده شروعی؟</strong><p>پیشرفت و امکان توقف امن در همین صفحه نمایش داده می‌شود.</p></div><div class="crawl-form__actions"><button id="crawlSubmitButton" type="submit" class="button button--primary crawl-submit"><span class="crawl-submit__content"><span class="crawl-submit__spinner" aria-hidden="true"></span><span id="crawlButtonText">شروع استخراج</span><span aria-hidden="true">←</span></span></button><button id="crawlStopButton" type="button" class="crawl-stop">توقف کراول</button></div></div>
+        <div id="crawlStatus" class="crawl-status im-live-status" role="status" aria-live="polite"><div class="crawl-status__spinner" aria-hidden="true"></div><div class="crawl-status__content"><p id="crawlStatusTitle" class="crawl-status__title">در حال آماده‌سازی...</p><p id="crawlStatusDescription" class="crawl-status__description">پیشرفت دریافت محتوا اینجا نمایش داده می‌شود.</p><div id="crawlProgressTrack" class="crawl-progress-track" role="progressbar" aria-label="پیشرفت کراول" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="crawlProgressFill" class="crawl-progress-fill"></div></div><a id="crawlViewResults" class="button button--secondary" href="#" hidden style="margin-top:12px;align-self:flex-start">مشاهده نتایج کراول</a></div></div>
+      </form>
+    </section>
+    <aside class="im-start__aside" aria-label="راهنمای استخراج">
+      <section class="im-guidance"><span class="im-guidance__icon" aria-hidden="true">✦</span><h2>قبل از شروع</h2><p>برای یک استخراج پایدار، این چند نکته را در نظر بگیر:</p><div class="im-guidance__item"><span>✓</span><div><strong>حساب متصل</strong><p>انتخاب حساب واردشده معمولاً به نمایش پست‌های بیشتری کمک می‌کند.</p></div></div><div class="im-guidance__item"><span>✓</span><div><strong>تعداد مناسب</strong><p>ابتدا با چند پست تست کن و بعد تعداد را افزایش بده.</p></div></div><div class="im-guidance__item"><span>✓</span><div><strong>بازبینی قبل از ارسال</strong><p>بعد از استخراج، هیچ محتوایی بدون مرحله بررسی به سلورا ارسال نمی‌شود.</p></div></div></section>
+      <section class="im-start__safe"><span aria-hidden="true">▣</span><div><strong>ذخیره‌سازی امن</strong><p>فایل‌های سالم قبلی دوباره دانلود نمی‌شوند و توقف، داده‌های ثبت‌شده را حذف نمی‌کند.</p></div></section>
+    </aside>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -257,6 +184,7 @@
       const stopButton = document.getElementById('crawlStopButton')
       const progressTrack = document.getElementById('crawlProgressTrack')
       const progressFill = document.getElementById('crawlProgressFill')
+      const viewResults = document.getElementById('crawlViewResults')
     
       if (!form || !usernameInput || !maxItemsInput || !sortOrderInput || !submitButton || !buttonText || !statusBox || !statusTitle || !statusDescription) {
         console.error('Crawl UI initialization failed.')
@@ -279,6 +207,7 @@
       }
     
       const setLoading = () => {
+        if (viewResults) viewResults.hidden = true
         form.classList.add('is-loading')
     
         submitButton.classList.add('is-loading')
@@ -318,10 +247,11 @@
         if (accountInput) accountInput.disabled = false
         window.SeloraCustomSelect?.refreshAll()
     
-        buttonText.textContent = 'شروع کراول'
+        buttonText.textContent = 'شروع استخراج'
         stopButton.classList.remove('is-visible')
         activeCrawl = null
         sessionStorage.removeItem(RESUME_KEY)
+        if (viewResults) viewResults.hidden = true
       }
     
       const showError = (message) => {
@@ -392,7 +322,10 @@
         buttonText.textContent = 'در حال باز کردن نتایج...'
       }
     
-      const pollCrawlStatus = async (statusUrl) => {
+      // Resumed jobs must not navigate on completion: a stale sessionStorage
+      // entry used to send the operator back to an already-completed crawl
+      // every time they visited the homepage.
+      const pollCrawlStatus = async (statusUrl, { resumed = false } = {}) => {
         while (true) {
           await sleep(POLL_INTERVAL_MS)
     
@@ -420,16 +353,28 @@
               break
     
             case 'completed':
-              showCompleted(data)
-    
-              await sleep(600)
-    
               if (!data.detail_url) {
-                throw new Error('آدرس صفحه نتایج دریافت نشد.')
+                showError('آدرس صفحه نتایج دریافت نشد.')
+                return
               }
-    
-              window.location.href = data.detail_url
-    
+
+              // Persisted tracking belongs only to an *active* crawl.
+              // Clear before navigation, so going Home cannot trigger
+              // repeated completed -> detail -> Home redirects.
+              resetLoading()
+              showCompleted(data)
+              if (resumed) {
+                buttonText.textContent = 'شروع استخراج'
+                statusDescription.textContent = `${data.crawled_media_count} محتوا دریافت شد. برای دیدن نتیجه دکمه زیر را انتخاب کنید.`
+                if (viewResults) {
+                  viewResults.href = data.detail_url
+                  viewResults.hidden = false
+                }
+                return
+              }
+
+              await sleep(600)
+              window.location.assign(data.detail_url)
               return
     
             case 'cancelled':
@@ -476,7 +421,7 @@
           if (data?.status_url && data?.stop_url) {
             activeCrawl = data
             setLoading()
-            pollCrawlStatus(data.status_url).catch(error => showError(error.message))
+            pollCrawlStatus(data.status_url, { resumed: true }).catch(error => showError(error.message))
           }
         } catch { sessionStorage.removeItem(RESUME_KEY) }
       }

@@ -297,7 +297,7 @@ def test_invalid_sort_order_returns_400(client: FlaskClient) -> None:
 
 
 def test_crawl_form_offers_chronological_sort(client: FlaskClient) -> None:
-    html = client.get("/").get_data(as_text=True)
+    html = client.get("/crawl/new").get_data(as_text=True)
     assert 'name="sort_order"' in html
     assert 'value="oldest"' in html
     assert 'value="newest"' in html

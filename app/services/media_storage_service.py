@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
+from http.client import IncompleteRead
+from urllib.error import HTTPError, URLError
 from datetime import datetime, timezone
 import hashlib
 import logging
@@ -28,6 +31,7 @@ class MediaStorageResult:
     saved: int
     reused: int
     failed: int
+    bytes_saved: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +72,8 @@ class InstagramMediaStorageService:
     CHUNK_SIZE = 64 * 1024
     DB_COMMIT_ATTEMPTS = 4
     DB_LOCK_BACKOFF_SECONDS = 0.25
+    MAX_DOWNLOAD_WORKERS = 3
+    MAX_DOWNLOAD_ATTEMPTS = 3
 
     def __init__(
         self,
@@ -85,6 +91,7 @@ class InstagramMediaStorageService:
         *,
         source: InstagramSource,
         assets: Iterable[InstagramAsset] | None = None,
+        parallel_downloads: bool = False,
         check_cancel: Callable[[], None] | None = None,
         on_progress: Callable[..., None] | None = None,
     ) -> MediaStorageResult:
@@ -140,98 +147,179 @@ class InstagramMediaStorageService:
         # committed all failures at the end, which amplified SQLite locking.
         db.session.commit()
 
-        saved = 0
-        reused = 0
-        failed = 0
+        saved = reused = failed = bytes_saved = 0
+        completed = 0
+        total = len(snapshots)
 
-        if on_progress:
-            on_progress("downloading", 0, len(snapshots), saved=0,
-                        reused=0, failed=0, bytes_saved=0)
+        def progress() -> None:
+            if on_progress:
+                on_progress("downloading", completed, total, saved=saved,
+                            reused=reused, failed=failed, bytes_saved=bytes_saved)
 
-        bytes_saved = 0
-        for index, snapshot in enumerate(snapshots, start=1):
+        progress()
+
+        # Only workers handle immutable DTOs and network/file I/O. The Flask
+        # application context and SQLite session remain on THIS thread.
+        # Explicit subsets (e.g. Selora upload of one asset) stay serial.
+        parallelism = (
+            min(self.MAX_DOWNLOAD_WORKERS, total)
+            if assets is None or parallel_downloads else 1
+        )
+
+        def process(snapshot: _AssetSnapshot, persisted: _PersistedFile | None,
+                    error: Exception | None) -> None:
+            nonlocal saved, failed, bytes_saved, completed
             if check_cancel:
                 check_cancel()
             try:
-                if self._snapshot_has_persisted_file(snapshot=snapshot):
-                    self._write_asset_state(
-                        asset_id=snapshot.asset_id,
-                        values={
-                            "local_file_status": "ready",
-                            "local_file_error": None,
-                        },
-                    )
-                    reused += 1
-                    if on_progress:
-                        on_progress("downloading", index, len(snapshots),
-                                    saved=saved, reused=reused, failed=failed,
-                                    bytes_saved=bytes_saved)
-                    continue
-
-                persisted = self._persist_snapshot(
-                    snapshot=snapshot,
-                    username=username,
-                    check_cancel=check_cancel,
-                )
-                self._write_asset_state(
-                    asset_id=snapshot.asset_id,
-                    values={
-                        "local_file_path": persisted.relative_path,
-                        "local_file_status": "ready",
-                        "local_saved_at": persisted.saved_at,
-                        "local_content_type": persisted.content_type,
-                        "local_file_size": persisted.size_bytes,
-                        "local_sha256": persisted.sha256,
-                        "local_file_error": None,
-                    },
-                )
+                if error is not None:
+                    raise error
+                if persisted is None:
+                    raise MediaStorageError("Download returned no media")
+                self._write_asset_state(asset_id=snapshot.asset_id, values={
+                    "local_file_path": persisted.relative_path,
+                    "local_file_status": "ready", "local_saved_at": persisted.saved_at,
+                    "local_content_type": persisted.content_type,
+                    "local_file_size": persisted.size_bytes,
+                    "local_sha256": persisted.sha256,
+                    "local_file_error": None,
+                })
                 saved += 1
                 bytes_saved += persisted.size_bytes
-
             except CrawlCancelled:
                 raise
             except Exception as exc:
-                try:
-                    self._write_asset_state(
-                        asset_id=snapshot.asset_id,
-                        values={
-                            "local_file_status": "failed",
-                            "local_file_error": str(exc).strip()[:2000],
-                        },
-                    )
-                except Exception:
-                    logger.exception(
-                        "Could not persist media failure state: asset_id=%s",
-                        snapshot.asset_id,
-                    )
-
                 failed += 1
-                logger.exception(
-                    (
-                        "Media persistence failed: "
-                        "source_id=%s media_id=%s "
-                        "asset_id=%s type=%s position=%s "
-                        "error_type=%s error=%s"
-                    ),
-                    source_id,
-                    snapshot.media_id,
-                    snapshot.asset_id,
-                    snapshot.asset_type,
-                    snapshot.position,
-                    type(exc).__name__,
-                    exc,
-                )
+                try:
+                    self._write_asset_state(asset_id=snapshot.asset_id, values={
+                        "local_file_status": "failed", "local_file_error": str(exc).strip()[:2000],
+                    })
+                except Exception:
+                    logger.exception("Failed to save media failure state: %s", snapshot.asset_id)
+                logger.warning("Media asset failed: media=%s asset=%s type=%s error=%s",
+                               snapshot.media_id, snapshot.asset_id,
+                               type(exc).__name__, str(exc)[:160])
+            finally:
+                completed += 1
+                progress()
 
-            if on_progress:
-                on_progress("downloading", index, len(snapshots),
-                            saved=saved, reused=reused, failed=failed,
-                            bytes_saved=bytes_saved)
+        pending_downloads: list[_AssetSnapshot] = []
+        for snapshot in snapshots:
+            if check_cancel:
+                check_cancel()
+            if self._snapshot_has_persisted_file(snapshot=snapshot):
+                try:
+                    self._write_asset_state(asset_id=snapshot.asset_id,
+                                            values={"local_file_status": "ready", "local_file_error": None})
+                    reused += 1
+                    completed += 1
+                    progress()
+                except Exception as exc:
+                    process(snapshot, None, exc)
+            else:
+                pending_downloads.append(snapshot)
 
-        return MediaStorageResult(
-            saved=saved,
-            reused=reused,
-            failed=failed,
-        )
+        if pending_downloads:
+            if parallelism <= 1:
+                for snapshot in pending_downloads:
+                    if check_cancel:
+                        check_cancel()
+                    try:
+                        persisted = self._download_with_retry(
+                            snapshot=snapshot, username=username, check_cancel=check_cancel,
+                        )
+                    except CrawlCancelled:
+                        raise
+                    except Exception as exc:
+                        process(snapshot, None, exc)
+                    else:
+                        process(snapshot, persisted, None)
+            else:
+                executor = ThreadPoolExecutor(max_workers=parallelism,
+                                              thread_name_prefix="instagram-media")
+                futures: dict[Future[_PersistedFile], _AssetSnapshot] = {}
+                try:
+                    for snapshot in pending_downloads:
+                        if check_cancel:
+                            check_cancel()
+                        future = executor.submit(self._download_with_retry,
+                                                 snapshot=snapshot, username=username,
+                                                 check_cancel=check_cancel)
+                        futures[future] = snapshot
+                    waiting = set(futures)
+                    while waiting:
+                        if check_cancel:
+                            check_cancel()
+                        done, waiting = wait(waiting, timeout=0.3,
+                                             return_when=FIRST_COMPLETED)
+                        for future in done:
+                            if check_cancel:
+                                check_cancel()
+                            snapshot = futures[future]
+                            try:
+                                persisted = future.result()
+                            except CrawlCancelled:
+                                raise
+                            except Exception as exc:
+                                process(snapshot, None, exc)
+                            else:
+                                process(snapshot, persisted, None)
+                except BaseException:
+                    for future in futures:
+                        future.cancel()
+                    raise
+                finally:
+                    # All opened streams close (and .part files are removed)
+                    # before the crawl worker can report a terminal status.
+                    executor.shutdown(wait=True, cancel_futures=True)
+
+        logger.info("Media persistence completed: source_id=%s saved=%s reused=%s failed=%s bytes=%s",
+                    source_id, saved, reused, failed, bytes_saved)
+        return MediaStorageResult(saved=saved, reused=reused, failed=failed,
+                                  bytes_saved=bytes_saved)
+
+    @staticmethod
+    def _retryable(exc: Exception) -> bool:
+        if isinstance(exc, HTTPError):
+            return exc.code in {408, 429, 500, 502, 503, 504}
+        return isinstance(exc, (URLError, TimeoutError, ConnectionResetError, IncompleteRead))
+
+    def _download_with_retry(self, *, snapshot: _AssetSnapshot,
+                             username: str,
+                             check_cancel: Callable[[], None] | None = None) -> _PersistedFile:
+        start = time.monotonic()
+        # Soft overall budget; a blocked socket read remains bounded by the
+        # socket timeout. This does not forcibly terminate OS network calls.
+        budget = max(15, min(self._timeout_seconds * 4, 180))
+        deadline = start + budget
+        for attempt in range(1, self.MAX_DOWNLOAD_ATTEMPTS + 1):
+            if check_cancel:
+                check_cancel()
+            try:
+                return self._persist_snapshot(snapshot=snapshot, username=username,
+                                              check_cancel=check_cancel,
+                                              deadline_monotonic=deadline)
+            except CrawlCancelled:
+                raise
+            except Exception as exc:
+                if (attempt == self.MAX_DOWNLOAD_ATTEMPTS or
+                    not self._retryable(exc) or time.monotonic() - start >= budget):
+                    raise
+                delay = min(0.7 * (2 ** (attempt - 1)), 4.0)
+                if isinstance(exc, HTTPError) and exc.headers:
+                    retry_after = exc.headers.get("Retry-After")
+                    if retry_after and retry_after.isdigit():
+                        delay = max(delay, min(float(retry_after), 10.0))
+                logger.info("Transient media error: retrying asset=%s attempt=%s/%s",
+                            snapshot.asset_id, attempt, self.MAX_DOWNLOAD_ATTEMPTS)
+                # Check cooperative stop frequently instead of sleep() for the
+                # entire delay. No aggressive retry storm on rate limiting.
+                until = time.monotonic() + delay
+                while time.monotonic() < until:
+                    if check_cancel:
+                        check_cancel()
+                    time.sleep(max(0, min(0.2, until - time.monotonic())))
+        raise AssertionError("Download retry loop exhausted")
 
     def resolve_file_path(
         self,
@@ -340,6 +428,7 @@ class InstagramMediaStorageService:
         snapshot: _AssetSnapshot,
         username: str,
         check_cancel: Callable[[], None] | None = None,
+        deadline_monotonic: float | None = None,
     ) -> _PersistedFile:
         source_url = snapshot.source_url
         if not source_url:
@@ -357,6 +446,9 @@ class InstagramMediaStorageService:
             },
         )
 
+        deadline = deadline_monotonic or (
+            time.monotonic() + max(15, min(self._timeout_seconds * 4, 180))
+        )
         with urlopen(request, timeout=self._timeout_seconds) as response:
             content_type = response.headers.get_content_type().strip().lower()
             content_length = response.headers.get("Content-Length")
@@ -393,7 +485,11 @@ class InstagramMediaStorageService:
                     while True:
                         if check_cancel:
                             check_cancel()
+                        if time.monotonic() > deadline:
+                            raise TimeoutError("Media transfer exceeded its time budget")
                         chunk = response.read(self.CHUNK_SIZE)
+                        if time.monotonic() > deadline:
+                            raise TimeoutError("Media transfer exceeded its time budget")
                         if not chunk:
                             break
                         file_size += len(chunk)

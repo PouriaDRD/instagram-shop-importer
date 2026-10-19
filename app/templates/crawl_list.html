@@ -4,7 +4,7 @@
 
 {% block breadcrumb %}
 <nav class="page-breadcrumb" aria-label="مسیر صفحه">
-  <a href="{{ url_for('web.index') }}">شروع کراول</a>
+  <a href="{{ url_for('web.crawl_new') }}">شروع کراول</a>
   <span class="page-breadcrumb__separator" aria-hidden="true">/</span>
   <span class="page-breadcrumb__current">نشست‌ها</span>
 </nav>
@@ -20,7 +20,7 @@
     <h1 class="page-title">نشست‌های کراول</h1>
     <p class="page-description">تمام نشست‌های استخراج، وضعیت ارسال به سلورا و جزئیات هر فروشگاه در یک نما.</p>
   </div>
-  <a href="{{ url_for('web.index') }}" class="button button--primary page-header__action"><span aria-hidden="true">＋</span> کراول جدید</a>
+  <a href="{{ url_for('web.crawl_new') }}" class="button button--primary page-header__action"><span aria-hidden="true">＋</span> کراول جدید</a>
 </section>
 
 {% if sessions %}
@@ -47,6 +47,7 @@
         <option value="running">در حال اجرا</option>
         <option value="pending">در انتظار</option>
         <option value="cancelled">متوقف‌شده</option>
+        <option value="interrupted">قطع‌شده</option>
         <option value="failed">ناموفق</option>
       </select>
     </div>
@@ -65,7 +66,9 @@
       <tbody>
       {% for crawl_session in sessions %}
         {% set selora_state = session_selora_status(crawl_session.id) %}
-        <tr class="sessions-row" data-session-row data-state="{{ crawl_session.status }}" data-search="{{ (crawl_session.full_name or '')|lower }} {{ crawl_session.username|lower }}">
+        {% set run = recent_reports.get(crawl_session.id) %}
+        {% set display_state = 'interrupted' if run and run.status == 'interrupted' else crawl_session.status %}
+        <tr class="sessions-row" data-session-row data-state="{{ display_state }}" data-search="{{ (crawl_session.full_name or '')|lower }} {{ crawl_session.username|lower }}">
           <td data-label="پیج اینستاگرام">
             <div class="session-profile">
               <span class="session-profile__avatar-placeholder" aria-hidden="true">{{ crawl_session.username[:1]|upper }}
@@ -80,7 +83,9 @@
             </div>
           </td>
           <td data-label="وضعیت کراول">
-            {% if crawl_session.status == 'completed' %}
+            {% if display_state == 'interrupted' %}
+              <span class="status-badge status-badge--failed">قطع‌شده</span>
+            {% elif display_state == 'completed' %}
               <span class="status-badge status-badge--completed"><span class="sessions-status-dot" aria-hidden="true"></span>تکمیل‌شده</span>
             {% elif crawl_session.status == 'running' %}
               <span class="status-badge status-badge--running"><span class="sessions-status-dot sessions-status-dot--pulse" aria-hidden="true"></span>در حال کراول</span>
@@ -111,7 +116,13 @@
               {% endif %}
             </div>
           </td>
-          <td data-label="محتوا"><span class="session-media-count">{{ crawl_session.crawled_media_count }}</span></td>
+          <td data-label="محتوا">
+            <span class="session-media-count">{{ crawl_session.crawled_media_count }}</span>
+            {% if run %}
+              <small class="session-run-metrics">اجرای آخر: {{ run.synced_posts }} پست • {{ run.discovered_candidates }} کاندید</small>
+              {% if run.download_failed %}<small class="session-run-warning">{{ run.download_failed }} دانلود ناموفق</small>{% endif %}
+            {% endif %}
+          </td>
           <td data-label="ایجاد نشست"><time class="table-date"><strong class="table-date__date">{{ crawl_session.created_at|iran_date }}</strong><span class="table-date__time">{{ crawl_session.created_at|iran_time }}</span></time></td>
           <td data-label="پایان کراول">
             {% if crawl_session.completed_at %}
@@ -120,7 +131,12 @@
               <span class="table-date-state table-date-state--running">در حال اجرا</span>
             {% else %}<span class="table-date-state">—</span>{% endif %}
           </td>
-          <td data-label="عملیات"><a href="{{ url_for('web.crawl_detail', session_id=crawl_session.id) }}" class="sessions-view" aria-label="مشاهده جزئیات @{{ crawl_session.username }}">مشاهده <span aria-hidden="true">←</span></a></td>
+          <td data-label="عملیات"><div class="sessions-actions">
+            <a href="{{ url_for('web.crawl_detail', session_id=crawl_session.id) }}" class="sessions-view" aria-label="مشاهده جزئیات @{{ crawl_session.username }}">مشاهده <span aria-hidden="true">←</span></a>
+            {% if display_state in ('cancelled', 'failed', 'interrupted') or (run and (run.download_failed or run.download_error)) %}
+            <a href="{{ url_for('web.crawl_retry', session_id=crawl_session.id) }}" class="sessions-retry" aria-label="تلاش مجدد برای @{{ crawl_session.username }}">تلاش مجدد</a>
+            {% endif %}
+          </div></td>
         </tr>
       {% endfor %}
       </tbody>
@@ -133,7 +149,7 @@
   <div class="sessions-surface__footer">وضعیت کراول و ارسال به سلورا مستقل از یکدیگر ثبت می‌شوند.</div>
 </section>
 {% else %}
-<section class="sessions-surface"><div class="empty-state"><div class="empty-state__icon">◎</div><h2 class="empty-state__title">هنوز نشستی وجود ندارد</h2><p class="empty-state__description">برای شروع، آیدی یک فروشگاه اینستاگرامی را وارد کنید.</p><a href="{{ url_for('web.index') }}" class="button button--primary">اولین کراول را شروع کنید</a></div></section>
+<section class="sessions-surface"><div class="empty-state"><div class="empty-state__icon">◎</div><h2 class="empty-state__title">هنوز نشستی وجود ندارد</h2><p class="empty-state__description">برای شروع، آیدی یک فروشگاه اینستاگرامی را وارد کنید.</p><a href="{{ url_for('web.crawl_new') }}" class="button button--primary">اولین کراول را شروع کنید</a></div></section>
 {% endif %}
 {% endblock %}
 

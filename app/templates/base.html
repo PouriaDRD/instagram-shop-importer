@@ -37,7 +37,9 @@
           </a>
 
           <nav class="app-nav" aria-label="منوی اصلی">
-            <a href="{{ url_for('web.index') }}" class="app-nav__link {% if request.endpoint == 'web.index' %}is-active{% endif %}">شروع کراول</a>
+            <a href="{{ url_for('web.index') }}" class="app-nav__link {% if request.endpoint == 'web.index' %}is-active{% endif %}" {% if request.endpoint == 'web.index' %}aria-current="page"{% endif %}>داشبورد</a>
+
+            <a href="{{ url_for('web.crawl_new') }}" class="app-nav__link {% if request.endpoint in ['web.crawl_new', 'web.start_crawl'] %}is-active{% endif %}" {% if request.endpoint == 'web.crawl_new' %}aria-current="page"{% endif %}>شروع کراول</a>
 
             <a href="{{ url_for('web.crawl_list') }}" class="app-nav__link {% if request.endpoint in ['web.crawl_list', 'web.crawl_detail'] %}is-active{% endif %}">نشست‌ها</a>
 

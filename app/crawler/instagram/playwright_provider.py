@@ -109,6 +109,8 @@ class PlaywrightInstagramProvider:
 
         if self._timeout_ms <= 0:
             raise ValueError("Playwright timeout must be positive.")
+        # Per-attempt counters; candidates include pinned-post overscan.
+        self.discovery_metrics: dict[str, int] = {}
 
     def set_job_hooks(self, *, check_cancel, on_progress) -> None:
         """Optional local runner hooks, never part of Instagram provider protocol."""
@@ -179,6 +181,11 @@ class PlaywrightInstagramProvider:
             raise ValueError("Unsupported Instagram media sort order.")
 
         normalized_username = self._normalize_username(username)
+        self.discovery_metrics = {
+            "discovered_candidates": 0, "detail_attempted": 0,
+            "detail_failed": 0, "detail_succeeded": 0,
+            "unique_valid": 0, "selected_posts": 0,
+        }
 
         if max_items is not None:
             if max_items <= 0:
@@ -205,6 +212,7 @@ class PlaywrightInstagramProvider:
                     ),
                 )
 
+                self.discovery_metrics["discovered_candidates"] = len(media_urls)
                 # Use the profile metadata when a caller has not supplied a
                 # total (e.g. direct provider callers).
                 known_total = expected_media_count
@@ -248,9 +256,8 @@ class PlaywrightInstagramProvider:
                     )
 
                 logger.info(
-                    "Found %s media for @%s",
-                    len(media_urls),
-                    normalized_username,
+                    "Discovered %s candidate URLs for @%s (requested=%s; includes pinned overscan)",
+                    len(media_urls), normalized_username, max_items,
                 )
 
                 media_items: list[InstagramMediaDTO] = []
@@ -270,6 +277,7 @@ class PlaywrightInstagramProvider:
                         shortcode,
                     )
 
+                    self.discovery_metrics["detail_attempted"] += 1
                     try:
                         media = self._fetch_media_detail(
                             page=page,
@@ -280,13 +288,17 @@ class PlaywrightInstagramProvider:
                         raise
 
                     except InstagramMediaFetchError:
+                        self.discovery_metrics["detail_failed"] += 1
                         logger.exception(
                             "Failed to fetch media %s",
                             shortcode,
                         )
+                        # An inaccessible post still counts as inspected.
+                        self._job_report("posts", index, len(media_urls))
                         continue
 
                     media_items.append(media)
+                    self.discovery_metrics["detail_succeeded"] += 1
                     self._job_report("posts", index, len(media_urls))
 
         except PlaywrightTimeoutError as exc:
@@ -310,6 +322,7 @@ class PlaywrightInstagramProvider:
                 media=media, sort_order=sort_order
             ),
         )
+        self.discovery_metrics["unique_valid"] = len(ordered)
         if max_items is not None:
             ordered = ordered[:max_items]
             if len(ordered) < max_items:
@@ -319,6 +332,9 @@ class PlaywrightInstagramProvider:
                     "may have fewer posts, may require login, or its feed "
                     "stopped paginating. Existing data was not changed."
                 )
+        self.discovery_metrics["selected_posts"] = len(ordered)
+        logger.info("Selected %s unique posts from %s candidates for @%s", len(ordered),
+                    self.discovery_metrics["discovered_candidates"], normalized_username)
         return tuple(ordered)
 
     @staticmethod

@@ -6,7 +6,7 @@
 
 {% block breadcrumb %}
   <nav class="page-breadcrumb" aria-label="مسیر صفحه">
-    <a href="{{ url_for('web.index') }}">شروع کراول</a>
+    <a href="{{ url_for('web.crawl_new') }}">شروع کراول</a>
 
     <span class="page-breadcrumb__separator">/</span>
 
@@ -23,7 +23,7 @@
     <p class="error-page__description">{{ message }}</p>
 
     <div class="error-page__actions">
-      <a href="{{ url_for('web.index') }}" class="button button--primary">شروع کراول</a>
+      <a href="{{ url_for('web.crawl_new') }}" class="button button--primary">شروع کراول</a>
 
       <a href="{{ url_for('web.crawl_list') }}" class="button button--secondary">مشاهده نشست‌ها</a>
     </div>

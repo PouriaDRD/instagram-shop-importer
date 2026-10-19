@@ -41,6 +41,15 @@ class BackgroundCrawlRunner:
         registry = app.extensions.get("crawl_job_progress")
         if registry is not None:
             registry.begin(session_id)
+        audits = app.extensions.get("crawl_run_audit")
+        if audits is not None:
+            try:
+                audits.begin(session_id, requested=max_items,
+                             sort_order=sort_order, signed_in=bool(auth_state_path))
+            except Exception:
+                if registry is not None:
+                    registry.finish(session_id, "failed")
+                raise
         thread = threading.Thread(
             target=self._run,
             kwargs=kwargs,
@@ -53,6 +62,8 @@ class BackgroundCrawlRunner:
         except Exception:
             if registry is not None:
                 registry.finish(session_id, "failed")
+            if audits is not None:
+                audits.finish(session_id, status="failed", error_category="thread_start")
             raise
 
     @staticmethod
@@ -66,6 +77,7 @@ class BackgroundCrawlRunner:
     ) -> None:
         registry = app.extensions.get("crawl_job_progress")
         tracked = registry is not None and registry.exists(session_id)
+        audits = app.extensions.get("crawl_run_audit")
         app_context = app.app_context()
         context_pushed = False
 
@@ -97,9 +109,35 @@ class BackgroundCrawlRunner:
                     opts["sort_order"] = sort_order
                 if tracked:
                     opts["check_cancel"] = lambda: registry.check(session_id)
-                    opts["on_progress"] = lambda phase, current, total, **metrics: (
+                    def track_progress(phase: str, current: int,
+                                       total: int | None, **metrics: int) -> None:
                         registry.report(session_id, phase, current, total, **metrics)
-                    )
+                        if audits is None:
+                            return
+                        audit_values: dict[str, int] = {}
+                        if phase == "downloading":
+                            if total is not None:
+                                audit_values["download_total"] = total
+                            for old, new in (("saved", "download_saved"),
+                                             ("reused", "download_reused"),
+                                             ("failed", "download_failed"),
+                                             ("bytes_saved", "bytes_downloaded")):
+                                if old in metrics:
+                                    audit_values[new] = metrics[old]
+                        try:
+                            audits.update(session_id, phase=phase,
+                                          metrics=audit_values)
+                        except Exception:
+                            logger.exception("Could not persist crawl progress %s", session_id)
+                    opts["on_progress"] = track_progress
+                if tracked and audits is not None:
+                    def audit_metrics(metrics: dict[str, int]) -> None:
+                        try:
+                            audits.update(session_id, metrics=metrics)
+                        except Exception:
+                            # Observability must not corrupt a completed crawl.
+                            logger.exception("Could not update crawl audit %s", session_id)
+                    opts["on_audit"] = audit_metrics
                 service.run(**opts)
 
             except Exception as exc:
@@ -124,6 +162,7 @@ class BackgroundCrawlRunner:
             )
 
         finally:
+            phase = "failed"
             if tracked:
                 # An in-memory cancellation request never reports success until
                 # the service has persisted its terminal SQL state.
@@ -136,6 +175,12 @@ class BackgroundCrawlRunner:
                 except Exception:
                     logger.exception("Unable to finalize crawl progress %s", session_id)
                     registry.finish(session_id, "failed")
+            if audits is not None:
+                try:
+                    terminal = phase if tracked else "failed"
+                    audits.finish(session_id, status=terminal)
+                except Exception:
+                    logger.exception("Unable to finalize crawl audit %s", session_id)
             if context_pushed:
                 # Flask-SQLAlchemy removes the scoped session on context
                 # teardown. Calling remove() here would do it twice.

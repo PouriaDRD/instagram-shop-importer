@@ -247,9 +247,35 @@ from app.services.selora_upload_checkpoint_service import (
 
 @web_bp.get("/")
 def index() -> str:
+    """Operator dashboard; no crawl can start through a GET request."""
+    from sqlalchemy import func, select
+    from app.models import InstagramSource
+
+    recent = CrawlSessionRepository().list_all(limit=6)
+    status_counts = dict(
+        db.session.execute(
+            select(InstagramSource.status, func.count(InstagramSource.id))
+            .group_by(InstagramSource.status)
+        ).all()
+    )
+    accounts = current_app.extensions["instagram_operator_accounts"].list_accounts()
+    return render_template(
+        "dashboard.html",
+        recent_sessions=recent,
+        total_sources=sum(status_counts.values()),
+        completed_sources=status_counts.get("completed", 0),
+        active_sources=status_counts.get("running", 0) + status_counts.get("pending", 0),
+        connected_accounts=sum(1 for account in accounts if account.get("saved_session", False)),
+    )
+
+
+@web_bp.get("/crawl/new")
+def crawl_new() -> str:
+    """Dedicated crawl setup page; POST /crawl remains the extraction API."""
     accounts = current_app.extensions["instagram_operator_accounts"].list_accounts()
     return render_template(
         "index.html", operator_accounts=accounts,
+        retry_username=request.args.get("username", "").strip()[:255],
         crawl_stop_token=current_app.extensions["instagram_operator_csrf"],
     )
 
@@ -263,7 +289,9 @@ def favicon() -> ResponseReturnValue:
 def crawl_list() -> str:
     repository = CrawlSessionRepository()
     sessions = repository.list_all(limit=100)
-    return render_template("crawl_list.html", sessions=sessions)
+    audits = current_app.extensions["crawl_run_audit"]
+    recent_reports = {row.id: audits.latest(row.id) for row in sessions}
+    return render_template("crawl_list.html", sessions=sessions, recent_reports=recent_reports)
 
 
 @web_bp.get("/media/assets/<asset_id>")
@@ -325,7 +353,7 @@ def stored_instagram_asset(
 @web_bp.get("/crawl")
 @web_bp.get("/crawl/")
 def crawl_get_redirect() -> ResponseReturnValue:
-    return redirect(url_for("web.index"))
+    return redirect(url_for("web.crawl_new"))
 
 
 @web_bp.post("/crawl")
@@ -476,9 +504,11 @@ def crawl_status(session_id: str) -> ResponseReturnValue:
         )
 
     progress = current_app.extensions["crawl_job_progress"].snapshot(session_id)
+    audit = current_app.extensions["crawl_run_audit"].latest(session_id)
     return jsonify(
         {
             "progress": progress,
+            "run_report": audit,
             "id": crawl_session.id,
             "username": crawl_session.username,
             "status": crawl_session.status,
@@ -518,6 +548,24 @@ def stop_crawl(session_id: str) -> ResponseReturnValue:
     return jsonify({"ok": True, "status": "stopping"}), 202
 
 
+@web_bp.get("/crawl/<session_id>/report")
+def crawl_run_report(session_id: str) -> ResponseReturnValue:
+    session = CrawlSessionRepository().get(session_id=session_id)
+    if session is None:
+        return jsonify({"error": "not_found"}), 404
+    return jsonify({"runs": current_app.extensions["crawl_run_audit"].history(session_id, 10)})
+
+
+@web_bp.get("/crawl/<session_id>/retry")
+def crawl_retry(session_id: str) -> ResponseReturnValue:
+    session = CrawlSessionRepository().get(session_id=session_id)
+    if session is None:
+        abort(404)
+    # The operator must explicitly choose an Instagram account on the new form;
+    # never reuse or leak a prior operator's credentials implicitly.
+    return redirect(url_for("web.crawl_new", username=session.username))
+
+
 def _render_crawl_detail(
     *,
     crawl_session,
@@ -555,6 +603,7 @@ def _render_crawl_detail(
     rendered = render_template(
         "crawl_detail.html",
         crawl_session=crawl_session,
+        crawl_run_reports=current_app.extensions["crawl_run_audit"].history(crawl_session.id, 5),
         draft_error=draft_error,
         current_draft=current_draft,
         selected_media_ids=selected_media_ids,

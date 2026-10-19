@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}داشبورد | ایمپورتر سلورا{% endblock %}
+{% block content %}
+<div class="im-dashboard">
+  <div class="im-dashboard__eyebrow"><span class="im-dot"></span> مرکز مدیریت انتقال اینستاگرام</div>
+  <section class="im-hero" aria-labelledby="dashboardHeading">
+    <div class="im-hero__body">
+      <span class="im-pill im-pill--light">فضای کار اپراتور</span>
+      <h1 id="dashboardHeading">مدیریت انتقال فروشگاه‌ها، <span>از یک نقطه.</span></h1>
+      <p>کراول جدید را شروع کن، نشست‌های قبلی را مرور کن و حساب‌های اینستاگرام را مدیریت کن. هر مرحله مستقل و قابل پیگیری است.</p>
+      <div class="im-hero__actions">
+        <a href="{{ url_for('web.crawl_new') }}" class="im-action im-action--white"><span aria-hidden="true">＋</span> شروع کراول جدید <span aria-hidden="true">↖</span></a>
+        <a href="{{ url_for('web.crawl_list') }}" class="im-action im-action--outline">مشاهده نشست‌ها <span aria-hidden="true">←</span></a>
+      </div>
+    </div>
+    <div class="im-hero__visual" aria-hidden="true">
+      <div class="im-visual-card im-visual-card--first"><span class="im-visual-icon">◎</span><span>اینستاگرام</span><b>محتوای فروشگاه</b></div>
+      <div class="im-visual-connector">↙</div>
+      <div class="im-visual-card im-visual-card--last"><img src="{{ url_for('static', filename='images/favicon.ico') }}" alt=""><span>سلورا</span><b>آماده انتقال</b></div>
+    </div>
+  </section>
+
+  <section aria-label="خلاصه وضعیت" class="im-metrics">
+    <div class="im-metric"><div class="im-metric__top"><span>پیج‌های ثبت‌شده</span><span class="im-metric__icon" aria-hidden="true">▣</span></div><strong>{{ total_sources }}</strong><small>در فهرست نشست‌های محلی</small></div>
+    <div class="im-metric"><div class="im-metric__top"><span>کراول تکمیل‌شده</span><span class="im-metric__icon im-metric__icon--green" aria-hidden="true">✓</span></div><strong>{{ completed_sources }}</strong><small>آخرین وضعیت پیج‌ها</small></div>
+    <div class="im-metric"><div class="im-metric__top"><span>در حال پردازش</span><span class="im-metric__icon im-metric__icon--amber" aria-hidden="true">◷</span></div><strong>{{ active_sources }}</strong><small>در انتظار یا در حال اجرا</small></div>
+    <div class="im-metric"><div class="im-metric__top"><span>حساب‌های متصل</span><span class="im-metric__icon im-metric__icon--blue" aria-hidden="true">♙</span></div><strong>{{ connected_accounts }}</strong><small>نشست ورود ذخیره‌شده</small></div>
+  </section>
+
+  <div class="im-dashboard__columns">
+    <section class="im-panel im-panel--recent" aria-labelledby="recentHeading">
+      <div class="im-panel__heading"><div><span class="im-section-kicker">فعالیت‌های اخیر</span><h2 id="recentHeading">آخرین پیج‌ها</h2><p>وضعیت هر پیج بر اساس آخرین اجرای آن نمایش داده می‌شود.</p></div><a class="im-text-link" href="{{ url_for('web.crawl_list') }}">همه نشست‌ها <span aria-hidden="true">←</span></a></div>
+      {% if recent_sessions %}
+      <div class="im-recent-list">
+      {% for item in recent_sessions %}
+        <a class="im-recent" href="{{ url_for('web.crawl_detail', session_id=item.id) }}">
+          <span class="im-recent__avatar" aria-hidden="true">{{ item.username[:1]|upper }}</span>
+          <span class="im-recent__identity"><strong dir="ltr">@{{ item.username }}</strong><small>{{ item.crawled_media_count }} محتوای آخرین اجرا</small></span>
+          <span class="im-status im-status--{{ item.status if item.status in ['completed','failed','cancelled','running','pending'] else 'pending' }}">{% if item.status == 'completed' %}تکمیل‌شده{% elif item.status == 'failed' %}ناموفق{% elif item.status == 'cancelled' %}متوقف‌شده{% elif item.status == 'running' %}در حال اجرا{% else %}در انتظار{% endif %}</span>
+          <span class="im-recent__arrow" aria-hidden="true">←</span>
+        </a>
+      {% endfor %}
+      </div>
+      {% else %}
+      <div class="im-empty"><div class="im-empty__symbol" aria-hidden="true">◎</div><h3>هنوز نشستی ثبت نشده است</h3><p>اولین پیج اینستاگرام را استخراج کن تا فعالیت‌ها اینجا دیده شوند.</p><a href="{{ url_for('web.crawl_new') }}">شروع اولین کراول ←</a></div>
+      {% endif %}
+    </section>
+    <aside class="im-dashboard__aside" aria-label="دسترسی‌های سریع">
+      <section class="im-panel im-workflow"><div class="im-panel__heading"><div><span class="im-section-kicker">مسیر انتقال</span><h2>سه قدم تا سلورا</h2></div></div>
+        <ol class="im-steps">
+          <li><span>۱</span><div><b>استخراج</b><p>پست‌ها و رسانه‌های پیج را دریافت کن.</p></div></li>
+          <li><span>۲</span><div><b>بازبینی</b><p>محتوا و تصاویر را انتخاب و ویرایش کن.</p></div></li>
+          <li><span>۳</span><div><b>انتقال</b><p>پیش‌نویس بررسی‌شده را به سلورا بفرست.</p></div></li>
+        </ol>
+      </section>
+      <a class="im-accounts-link" href="{{ url_for('web.instagram_accounts_page') }}"><span class="im-accounts-link__icon" aria-hidden="true">◉</span><span><strong>مدیریت حساب‌های اینستاگرام</strong><small>اتصال، بررسی یا حذف نشست اپراتورها</small></span><span aria-hidden="true">←</span></a>
+    </aside>
+  </div>
+  <p class="im-dashboard__note">اطلاعات این داشبورد از داده‌های ذخیره‌شده روی همین دستگاه خوانده می‌شوند؛ وضعیت ارتباط با API سلورا به‌صورت مستقل بررسی می‌شود.</p>
+</div>
+{% endblock %}

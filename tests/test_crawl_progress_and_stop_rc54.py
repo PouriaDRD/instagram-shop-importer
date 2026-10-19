@@ -83,7 +83,7 @@ def test_stop_endpoint_uses_csrf_and_loopback(app, client) -> None:
         assert CrawlSessionRepository().get(session_id=source_id).status == "running"
     # A stop request is not a completed cancellation until the worker handles it.
     assert client.get("/").status_code == 200
-    assert b"crawlStopButton" in client.get("/").data
+    assert b"crawlStopButton" in client.get("/crawl/new").data
 
 
 def test_existing_completed_session_cannot_be_cancelled(app, client) -> None:

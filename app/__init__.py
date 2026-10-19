@@ -76,7 +76,9 @@ def create_app() -> Flask:
     register_session_status_helpers(app)
 
     from app.services.crawl_job_progress import CrawlJobProgress
+    from app.services.crawl_run_audit import CrawlRunAudit
     app.extensions["crawl_job_progress"] = CrawlJobProgress()
+    app.extensions["crawl_run_audit"] = CrawlRunAudit(instance_path / "crawl_reports")
 
     register_routes(app)
 

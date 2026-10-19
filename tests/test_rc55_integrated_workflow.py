@@ -26,7 +26,7 @@ def test_persian_brand_and_same_browser_favicon(client: FlaskClient) -> None:
 
 
 def test_custom_select_keeps_real_posted_fields(client: FlaskClient) -> None:
-    html = client.get("/").get_data(as_text=True)
+    html = client.get("/crawl/new").get_data(as_text=True)
     assert 'name="instagram_account"' in html
     assert 'name="sort_order"' in html
     assert html.count("data-custom-select") >= 2
