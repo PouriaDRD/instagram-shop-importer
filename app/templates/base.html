@@ -9,7 +9,7 @@
 
     <title>
       {% block title %}
-        Selora Importer
+        ایمپورتر سلورا
       {% endblock %}
     </title>
 
@@ -26,13 +26,13 @@
     <div class="app-shell">
       <header class="app-header">
         <div class="app-header__inner">
-          <a href="{{ url_for('web.index') }}" class="brand" aria-label="Selora Importer">
-            <span class="brand__mark">S</span>
+          <a href="{{ url_for('web.index') }}" class="brand" aria-label="ایمپورتر سلورا">
+            <span class="brand__mark brand__mark--icon"><img src="{{ url_for('static', filename='images/favicon.ico') }}" alt="" width="42" height="42" /></span>
 
             <span class="brand__content">
-              <span class="brand__title">Selora Importer</span>
+              <span class="brand__title">ایمپورتر سلورا</span>
 
-              <span class="brand__subtitle">Instagram Shop Migration</span>
+              <span class="brand__subtitle">انتقال فروشگاه اینستاگرامی</span>
             </span>
           </a>
 
@@ -46,7 +46,7 @@
             {# Only the desktop runtime installs the safe-exit controller.
                Standalone Flask/test instances must never render a dead route. #}
             {% if safe_exit_token is defined %}
-              <form action="{{ url_for('runtime_safe_exit') }}" method="post" onsubmit="return confirm('از Selora Importer به‌صورت امن خارج می‌شوید. ادامه می‌دهید؟');">
+              <form action="{{ url_for('runtime_safe_exit') }}" method="post" onsubmit="return confirm('از ایمپورتر سلورا به‌صورت امن خارج می‌شوید. ادامه می‌دهید؟');">
                 <input type="hidden" name="token" value="{{ safe_exit_token }}" />
                 <button type="submit" class="button button--secondary button--small">خروج امن</button>
               </form>

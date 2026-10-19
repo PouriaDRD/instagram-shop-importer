@@ -75,6 +75,9 @@ def create_app() -> Flask:
 
     register_session_status_helpers(app)
 
+    from app.services.crawl_job_progress import CrawlJobProgress
+    app.extensions["crawl_job_progress"] = CrawlJobProgress()
+
     register_routes(app)
 
     register_http_logging(app)

@@ -110,6 +110,21 @@ class PlaywrightInstagramProvider:
         if self._timeout_ms <= 0:
             raise ValueError("Playwright timeout must be positive.")
 
+    def set_job_hooks(self, *, check_cancel, on_progress) -> None:
+        """Optional local runner hooks, never part of Instagram provider protocol."""
+        self._job_check_cancel = check_cancel
+        self._job_on_progress = on_progress
+
+    def _job_checkpoint(self) -> None:
+        check = getattr(self, "_job_check_cancel", None)
+        if check is not None:
+            check()
+
+    def _job_report(self, phase: str, current: int, total: int | None) -> None:
+        callback = getattr(self, "_job_on_progress", None)
+        if callback is not None:
+            callback(phase, current, total)
+
     # =========================================================
     # Public API
     # =========================================================
@@ -121,6 +136,7 @@ class PlaywrightInstagramProvider:
     ) -> InstagramProfileDTO:
         normalized_username = self._normalize_username(username)
 
+        self._job_checkpoint()
         logger.info(
             "Fetching profile @%s",
             normalized_username,
@@ -168,6 +184,8 @@ class PlaywrightInstagramProvider:
             if max_items <= 0:
                 return ()
 
+        self._job_checkpoint()
+        self._job_report("discovery", 0, max_items)
         logger.info(
             "Discovering media for @%s",
             normalized_username,
@@ -237,10 +255,12 @@ class PlaywrightInstagramProvider:
 
                 media_items: list[InstagramMediaDTO] = []
 
+                self._job_report("posts", 0, len(media_urls))
                 for index, media_url in enumerate(
                     media_urls,
                     start=1,
                 ):
+                    self._job_checkpoint()
                     shortcode = self._shortcode_from_url(media_url)
 
                     logger.info(
@@ -267,6 +287,7 @@ class PlaywrightInstagramProvider:
                         continue
 
                     media_items.append(media)
+                    self._job_report("posts", index, len(media_urls))
 
         except PlaywrightTimeoutError as exc:
             raise InstagramFetchTimeoutError(
@@ -928,6 +949,7 @@ class PlaywrightInstagramProvider:
             signed_in = False
 
         for scroll_round in range(MAX_SCROLL_ROUNDS):
+            self._job_checkpoint()
             previous_count = len(discovered)
             self._collect_media_links(
                 page=page,

@@ -38,6 +38,9 @@ class BackgroundCrawlRunner:
             kwargs["sort_order"] = sort_order
         if auth_state_path is not None:
             kwargs["auth_state_path"] = auth_state_path
+        registry = app.extensions.get("crawl_job_progress")
+        if registry is not None:
+            registry.begin(session_id)
         thread = threading.Thread(
             target=self._run,
             kwargs=kwargs,
@@ -45,7 +48,12 @@ class BackgroundCrawlRunner:
             daemon=True,
         )
 
-        thread.start()
+        try:
+            thread.start()
+        except Exception:
+            if registry is not None:
+                registry.finish(session_id, "failed")
+            raise
 
     @staticmethod
     def _run(
@@ -56,6 +64,8 @@ class BackgroundCrawlRunner:
         sort_order: str = "newest",
         auth_state_path: str | None = None,
     ) -> None:
+        registry = app.extensions.get("crawl_job_progress")
+        tracked = registry is not None and registry.exists(session_id)
         app_context = app.app_context()
         context_pushed = False
 
@@ -71,19 +81,26 @@ class BackgroundCrawlRunner:
                     if auth_state_path is not None
                     else PlaywrightInstagramProvider()
                 )
+                if tracked:
+                    provider.set_job_hooks(
+                        check_cancel=lambda: registry.check(session_id),
+                        on_progress=lambda phase, current, total:
+                            registry.report(session_id, phase, current, total),
+                    )
                 service = CrawlService(
                     provider=provider,
                     repository=repository,
                 )
 
-                if sort_order == "newest":
-                    service.run(session_id=session_id, max_items=max_items)
-                else:
-                    service.run(
-                        session_id=session_id,
-                        max_items=max_items,
-                        sort_order=sort_order,
+                opts = {"session_id": session_id, "max_items": max_items}
+                if sort_order != "newest":
+                    opts["sort_order"] = sort_order
+                if tracked:
+                    opts["check_cancel"] = lambda: registry.check(session_id)
+                    opts["on_progress"] = lambda phase, current, total, **metrics: (
+                        registry.report(session_id, phase, current, total, **metrics)
                     )
+                service.run(**opts)
 
             except Exception as exc:
                 logger.exception(
@@ -107,7 +124,21 @@ class BackgroundCrawlRunner:
             )
 
         finally:
+            if tracked:
+                # An in-memory cancellation request never reports success until
+                # the service has persisted its terminal SQL state.
+                try:
+                    # Reuse the already-pushed application context. Creating a
+                    # nested one needlessly tears down the same scoped session.
+                    session = CrawlSessionRepository().get(session_id=session_id)
+                    phase = session.status if session else "failed"
+                    registry.finish(session_id, phase)
+                except Exception:
+                    logger.exception("Unable to finalize crawl progress %s", session_id)
+                    registry.finish(session_id, "failed")
             if context_pushed:
+                # Flask-SQLAlchemy removes the scoped session on context
+                # teardown. Calling remove() here would do it twice.
                 try:
                     app_context.pop()
                 except Exception:

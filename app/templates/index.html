@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block title %}
-  شروع کراول | Selora Importer
+  شروع کراول | ایمپورتر سلورا
 {% endblock %}
 
 {% block head %}
@@ -64,6 +64,15 @@
       color: #6b7280;
     }
     
+    .crawl-stop { display:none; border:1px solid #fca5a5; color:#991b1b;
+      background:#fff7f7; padding:11px 18px; border-radius:12px; font-weight:700;
+      cursor:pointer; margin-right:10px; }
+    .crawl-stop.is-visible {display:inline-flex;}
+    .crawl-stop:disabled {opacity:.6;cursor:wait;}
+    .crawl-progress-track {height:8px;background:#e5e7eb;border-radius:999px;
+      overflow:hidden; margin-top:10px;display:none;}
+    .crawl-progress-track.is-visible {display:block;}
+    .crawl-progress-fill {height:100%;width:0%;background:#4f46e5;transition:width .25s ease;}
     .crawl-submit {
       min-width: 155px;
     }
@@ -110,7 +119,7 @@
 {% block content %}
   <section class="hero">
     <div class="hero__content">
-      <span class="eyebrow" dir="ltr">Instagram Migration Tool</span>
+      <span class="eyebrow">ابزار انتقال فروشگاه اینستاگرامی</span>
 
       <h1 class="hero__title">انتقال فروشگاه اینستاگرامی به سلورا</h1>
 
@@ -142,7 +151,7 @@
 
       <div class="form-field">
         <label for="instagram_account" class="form-label">حساب مورد استفاده</label>
-        <select name="instagram_account" id="instagram_account" class="form-input">
+        <select name="instagram_account" id="instagram_account" class="form-input" data-custom-select data-placeholder="انتخاب حساب اینستاگرام">
           <option value="">بدون ورود (ممکن است فقط ۱۲ پست نمایش داده شود)</option>
           {% for account in operator_accounts %}
             {% if account.saved_session %}
@@ -156,7 +165,7 @@
       <div class="form-field">
         <label for="sort_order" class="form-label">ترتیب استخراج محتوا</label>
         <div class="input-wrapper">
-          <select id="sort_order" name="sort_order" class="form-input" required>
+          <select id="sort_order" name="sort_order" class="form-input" required data-custom-select data-placeholder="انتخاب ترتیب استخراج">
             <option value="newest" selected>از جدید به قدیم</option>
             <option value="oldest">از قدیم به جدید</option>
           </select>
@@ -172,6 +181,7 @@
             <span id="crawlButtonText">شروع کراول</span>
           </span>
         </button>
+        <button id="crawlStopButton" type="button" class="crawl-stop">توقف کراول</button>
       </div>
 
       <div id="crawlStatus" class="crawl-status" role="status" aria-live="polite">
@@ -181,6 +191,9 @@
           <p id="crawlStatusTitle" class="crawl-status__title">در حال جست‌وجو...</p>
 
           <p id="crawlStatusDescription" class="crawl-status__description">در حال آماده‌سازی کراول هستیم.</p>
+          <div id="crawlProgressTrack" class="crawl-progress-track" role="progressbar"
+               aria-label="پیشرفت کراول" aria-valuemin="0" aria-valuemax="100"
+               aria-valuenow="0"><div id="crawlProgressFill" class="crawl-progress-fill"></div></div>
         </div>
       </div>
     </form>
@@ -214,11 +227,15 @@
 {% endblock %}
 
 {% block scripts %}
+  <script defer src="{{ url_for('static', filename='js/custom_select.js') }}"></script>
   <script>
     ;(() => {
       'use strict'
     
       const POLL_INTERVAL_MS = 2000
+      const STOP_TOKEN = {{ crawl_stop_token|tojson }}
+      const RESUME_KEY = 'selora-importer-active-crawl-rc54'
+      let activeCrawl = null
     
       const form = document.getElementById('crawlForm')
     
@@ -237,6 +254,9 @@
       const statusTitle = document.getElementById('crawlStatusTitle')
     
       const statusDescription = document.getElementById('crawlStatusDescription')
+      const stopButton = document.getElementById('crawlStopButton')
+      const progressTrack = document.getElementById('crawlProgressTrack')
+      const progressFill = document.getElementById('crawlProgressFill')
     
       if (!form || !usernameInput || !maxItemsInput || !sortOrderInput || !submitButton || !buttonText || !statusBox || !statusTitle || !statusDescription) {
         console.error('Crawl UI initialization failed.')
@@ -269,6 +289,7 @@
         maxItemsInput.disabled = true
         sortOrderInput.disabled = true
         if (accountInput) accountInput.disabled = true
+        window.SeloraCustomSelect?.refreshAll()
     
         buttonText.textContent = 'در حال جست‌وجو...'
     
@@ -276,6 +297,9 @@
     
         statusBox.classList.add('is-visible')
     
+        stopButton.classList.add('is-visible')
+        stopButton.disabled = false
+        progressTrack.classList.remove('is-visible')
         statusTitle.textContent = 'در حال جست‌وجو...'
     
         statusDescription.textContent = 'در حال آماده‌سازی ارتباط با اینستاگرام هستیم.'
@@ -292,8 +316,12 @@
         maxItemsInput.disabled = false
         sortOrderInput.disabled = false
         if (accountInput) accountInput.disabled = false
+        window.SeloraCustomSelect?.refreshAll()
     
         buttonText.textContent = 'شروع کراول'
+        stopButton.classList.remove('is-visible')
+        activeCrawl = null
+        sessionStorage.removeItem(RESUME_KEY)
       }
     
       const showError = (message) => {
@@ -309,6 +337,34 @@
       }
     
       const updateRunningStatus = (data) => {
+        const progress = data.progress
+        stopButton.classList.add('is-visible')
+        stopButton.disabled = Boolean(progress?.cancel_requested)
+        if (progress) {
+          const phases = {
+            pending: 'در انتظار شروع', discovery: 'در حال شناسایی پست‌ها',
+            posts: 'در حال استخراج جزئیات پست‌ها',
+            metadata_saved: 'اطلاعات پست‌ها ثبت شد',
+            downloading: 'در حال دانلود تصاویر و ویدئوها',
+            stopping: 'در حال توقف امن کراول'
+          }
+          statusTitle.textContent = phases[progress.phase] || 'در حال پردازش'
+          let description = progress.total
+            ? `${progress.current} از ${progress.total} مورد پردازش شد.`
+            : `در حال بررسی @${data.username} هستیم.`
+          if (progress.phase === 'downloading') {
+            description += ` موفق: ${progress.saved} | مجدد استفاده‌شده: ${progress.reused} | ناموفق: ${progress.failed} | حجم: ${(progress.bytes_saved / 1048576).toFixed(1)} MB`
+          }
+          if (progress.cancel_requested) description = 'درخواست توقف ثبت شد؛ منتظر پایان عملیات جاری هستیم.'
+          statusDescription.textContent = description
+          if (progress.total && progress.total > 0) {
+            const pct = Math.min(100, Math.round(100 * progress.current / progress.total))
+            progressTrack.classList.add('is-visible')
+            progressFill.style.width = `${pct}%`
+            progressTrack.setAttribute('aria-valuenow', String(pct))
+          } else progressTrack.classList.remove('is-visible')
+          return
+        }
         statusBox.classList.remove('is-error', 'is-success')
     
         statusBox.classList.add('is-visible')
@@ -376,6 +432,13 @@
     
               return
     
+            case 'cancelled':
+              resetLoading()
+              statusBox.classList.add('is-visible')
+              statusTitle.textContent = 'کراول متوقف شد'
+              statusDescription.textContent = 'درخواست توقف انجام شد؛ محتوای قبلاً ثبت‌شده حذف نشده است.'
+              return
+
             case 'failed':
               showError(data.error_message || 'کراول این پیج انجام نشد.')
     
@@ -387,6 +450,37 @@
         }
       }
     
+      stopButton.addEventListener('click', async () => {
+        if (!activeCrawl || stopButton.disabled) return
+        stopButton.disabled = true
+        statusTitle.textContent = 'در حال توقف امن...'
+        try {
+          const response = await fetch(activeCrawl.stop_url, {
+            method: 'POST', credentials: 'same-origin',
+            headers: {'X-Crawl-Stop-Token': STOP_TOKEN}
+          })
+          if (!response.ok) {
+            const data = await readJson(response)
+            throw new Error(data?.message || 'درخواست توقف پذیرفته نشد.')
+          }
+        } catch (error) {
+          stopButton.disabled = false
+          statusDescription.textContent = error instanceof Error ? error.message : 'خطای توقف کراول'
+        }
+      })
+
+      const resume = sessionStorage.getItem(RESUME_KEY)
+      if (resume) {
+        try {
+          const data = JSON.parse(resume)
+          if (data?.status_url && data?.stop_url) {
+            activeCrawl = data
+            setLoading()
+            pollCrawlStatus(data.status_url).catch(error => showError(error.message))
+          }
+        } catch { sessionStorage.removeItem(RESUME_KEY) }
+      }
+
       form.addEventListener('submit', async (event) => {
         /*
          * مهم:
@@ -457,6 +551,11 @@
             return
           }
     
+          activeCrawl = {
+            status_url: data.status_url,
+            stop_url: `/crawl/${encodeURIComponent(data.id)}/stop`
+          }
+          sessionStorage.setItem(RESUME_KEY, JSON.stringify(activeCrawl))
           statusTitle.textContent = 'کراول شروع شد'
     
           statusDescription.textContent = `در حال بررسی @${data.username} هستیم.`

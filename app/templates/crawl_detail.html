@@ -660,6 +660,8 @@
                 <span class="session-status session-status--completed"><span class="session-status__dot"></span>تکمیل‌شده</span>
               {% elif crawl_session.status == 'running' %}
                 <span class="session-status session-status--running"><span class="session-status__dot session-status__dot--pulse"></span>در حال اجرا</span>
+              {% elif crawl_session.status == 'cancelled' %}
+                <span class="session-status session-status--pending">متوقف‌شده توسط اپراتور</span>
               {% elif crawl_session.status == 'failed' %}
                 <span class="session-status session-status--failed"><span class="session-status__dot"></span>ناموفق</span>
               {% else %}

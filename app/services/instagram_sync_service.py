@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
+from flask import has_app_context
+
+from app.services.crawl_job_progress import CrawlCancelled
 from app.config import Config
 from app.crawler.base import InstagramProvider
 from app.models import InstagramSource
@@ -75,6 +79,8 @@ class InstagramSyncService:
         session_id: str | None = None,
         max_items: int | None = None,
         sort_order: str = "newest",
+        check_cancel: Callable[[], None] | None = None,
+        on_progress: Callable[..., None] | None = None,
     ) -> None:
         if sort_order not in {"newest", "oldest"}:
             raise ValueError("Unsupported Instagram media sort order.")
@@ -106,6 +112,8 @@ class InstagramSyncService:
         )
 
         try:
+            if check_cancel:
+                check_cancel()
             self._repository.mark_running(
                 session=source,
             )
@@ -116,6 +124,8 @@ class InstagramSyncService:
                 )
             )
 
+            if check_cancel:
+                check_cancel()
             self._repository.save_profile(
                 session=source,
                 profile=profile,
@@ -136,19 +146,40 @@ class InstagramSyncService:
                     max_items=max_items,
                 )
 
+            if check_cancel:
+                check_cancel()
             self._persist_media(
                 source=source,
                 media_items=media_items,
                 full_sync=(max_items is None),
             )
 
+            if on_progress:
+                on_progress("metadata_saved", len(media_items), len(media_items))
+            if check_cancel:
+                check_cancel()
             self._persist_media_files_safely(
                 source=source,
+                check_cancel=check_cancel,
+                on_progress=on_progress,
             )
+            if check_cancel:
+                check_cancel()
 
             self._repository.mark_completed(
                 session=source,
             )
+
+        except CrawlCancelled:
+            logger.info("Instagram crawl cancelled by operator for @%s", username)
+            # In production the worker owns an app context. Pure service
+            # unit-tests can inject a repository without one; do not attempt
+            # to access Flask's context-scoped SQLAlchemy session then.
+            if has_app_context():
+                from app.extensions import db
+                db.session.rollback()
+            self._repository.mark_cancelled(session=source)
+            return
 
         except Exception as exc:
             logger.exception(
@@ -202,6 +233,8 @@ class InstagramSyncService:
         self,
         *,
         source: InstagramSource,
+        check_cancel: Callable[[], None] | None = None,
+        on_progress: Callable[..., None] | None = None,
     ) -> None:
         if not Config.INSTAGRAM_MEDIA_STORAGE_ENABLED:
             return
@@ -233,10 +266,15 @@ class InstagramSyncService:
         )
 
         try:
-            result = service.persist_source(
-                source=source,
-            )
+            kwargs = {"source": source}
+            if check_cancel:
+                kwargs["check_cancel"] = check_cancel
+            if on_progress:
+                kwargs["on_progress"] = on_progress
+            result = service.persist_source(**kwargs)
 
+        except CrawlCancelled:
+            raise
         except Exception:
             # Local cache is deliberately auxiliary. A cache failure must not
             # turn a successful Instagram source synchronization into a failed

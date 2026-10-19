@@ -505,6 +505,12 @@ class InstagramSourceRepository:
 
         db.session.commit()
 
+    def mark_cancelled(self, *, session: InstagramSource) -> None:
+        session.status = "cancelled"
+        session.completed_at = utc_now()
+        session.error_message = None
+        db.session.commit()
+
     def mark_failed(
         self,
         *,

@@ -1,174 +1,145 @@
 {% extends 'base.html' %}
 
-{% block title %}
-  نشست‌های کراول | Selora Importer
-{% endblock %}
+{% block title %}نشست‌های کراول | ایمپورتر سلورا{% endblock %}
 
 {% block breadcrumb %}
-  <nav class="page-breadcrumb" aria-label="مسیر صفحه">
-    <a href="{{ url_for('web.index') }}">شروع کراول</a>
-
-    <span class="page-breadcrumb__separator">/</span>
-
-    <span class="page-breadcrumb__current">نشست‌ها</span>
-  </nav>
+<nav class="page-breadcrumb" aria-label="مسیر صفحه">
+  <a href="{{ url_for('web.index') }}">شروع کراول</a>
+  <span class="page-breadcrumb__separator" aria-hidden="true">/</span>
+  <span class="page-breadcrumb__current">نشست‌ها</span>
+</nav>
 {% endblock %}
 
 {% block content %}
-  <section class="page-header">
-    <div>
-      <span class="eyebrow" dir="ltr">Crawl Sessions</span>
+{% set completed_count = sessions|selectattr('status', 'equalto', 'completed')|list|length %}
+{% set running_count = sessions|selectattr('status', 'equalto', 'running')|list|length %}
+{% set failed_count = sessions|selectattr('status', 'equalto', 'failed')|list|length %}
+<section class="page-header sessions-heading">
+  <div>
+    <span class="eyebrow">مدیریت عملیات استخراج</span>
+    <h1 class="page-title">نشست‌های کراول</h1>
+    <p class="page-description">تمام نشست‌های استخراج، وضعیت ارسال به سلورا و جزئیات هر فروشگاه در یک نما.</p>
+  </div>
+  <a href="{{ url_for('web.index') }}" class="button button--primary page-header__action"><span aria-hidden="true">＋</span> کراول جدید</a>
+</section>
 
-      <h1 class="page-title">نشست‌های کراول</h1>
+{% if sessions %}
+<section class="sessions-overview" aria-label="خلاصه نشست‌ها">
+  <div class="sessions-overview__tile"><span class="sessions-overview__icon" aria-hidden="true">▤</span><div><strong>{{ sessions|length }}</strong><span>کل نشست‌ها</span></div></div>
+  <div class="sessions-overview__tile"><span class="sessions-overview__icon sessions-overview__icon--success" aria-hidden="true">✓</span><div><strong>{{ completed_count }}</strong><span>تکمیل‌شده</span></div></div>
+  <div class="sessions-overview__tile"><span class="sessions-overview__icon sessions-overview__icon--running" aria-hidden="true">↻</span><div><strong>{{ running_count }}</strong><span>در حال اجرا</span></div></div>
+  <div class="sessions-overview__tile"><span class="sessions-overview__icon sessions-overview__icon--error" aria-hidden="true">!</span><div><strong>{{ failed_count }}</strong><span>ناموفق</span></div></div>
+</section>
 
-      <p class="page-description">وضعیت کراول و وضعیت ارسال هر نشست به سلورا به‌صورت مستقل نمایش داده می‌شود.</p>
+<section class="sessions-surface" aria-label="فهرست نشست‌های کراول">
+  <div class="sessions-toolbar">
+    <div class="sessions-toolbar__heading"><h2>فهرست نشست‌ها</h2><span id="sessionsVisibleCount" class="sessions-toolbar__count">{{ sessions|length }} نشست</span></div>
+    <div class="sessions-toolbar__controls">
+      <label class="sessions-search">
+        <span class="sr-only">جست‌وجوی پیج</span>
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+        <input id="sessionSearch" type="search" placeholder="جست‌وجوی نام یا آیدی پیج..." autocomplete="off" />
+      </label>
+      <label class="sessions-filter-label" for="sessionStatusFilter">وضعیت</label>
+      <select id="sessionStatusFilter" class="sessions-filter" data-custom-select data-placeholder="همه وضعیت‌ها">
+        <option value="all">همه وضعیت‌ها</option>
+        <option value="completed">تکمیل‌شده</option>
+        <option value="running">در حال اجرا</option>
+        <option value="pending">در انتظار</option>
+        <option value="cancelled">متوقف‌شده</option>
+        <option value="failed">ناموفق</option>
+      </select>
     </div>
-
-    <a href="{{ url_for('web.index') }}" class="button button--primary page-header__action">کراول جدید</a>
-  </section>
-
-  <section class="card sessions-card">
-    {% if sessions %}
-      <div class="sessions-table-wrapper">
-        <table class="sessions-table">
-          <thead>
-            <tr>
-              <th>پیج</th>
-
-              <th>وضعیت کراول</th>
-
-              <th>وضعیت سلورا</th>
-
-              <th>محتوا</th>
-
-              <th>ایجاد نشست</th>
-
-              <th>پایان کراول</th>
-
-              <th class="sessions-table__actions-heading">عملیات</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {% for crawl_session in sessions %}
-              {% set selora_state = session_selora_status(crawl_session.id) %}
-              <tr>
-                <td>
-                  <div class="session-profile">
-                    {% if crawl_session.profile_picture_url %}
-                      <img src="{{ crawl_session.profile_picture_url }}" alt="@{{ crawl_session.username }}" class="session-profile__avatar" loading="lazy" />
-                    {% else %}
-                      <div class="session-profile__avatar-placeholder" aria-hidden="true">{{ crawl_session.username[:1]|upper }}</div>
-                    {% endif %}
-
-                    <div class="session-profile__content">
-                      <div class="session-profile__name">{{ crawl_session.full_name or crawl_session.username }}</div>
-
-                      <div class="session-profile__username" dir="ltr">@{{ crawl_session.username }}</div>
-                    </div>
-                  </div>
-                </td>
-
-                <td>
-                  {% if crawl_session.status == 'completed' %}
-                    <span class="status-badge status-badge--completed">کراول تکمیل‌شده</span>
-                  {% elif crawl_session.status == 'running' %}
-                    <span class="status-badge status-badge--running">
-                      <span class="status-badge__dot status-badge__dot--pulse" aria-hidden="true"></span>
-
-                      در حال کراول
-                    </span>
-                  {% elif crawl_session.status == 'failed' %}
-                    <span class="status-badge status-badge--failed">خطای کراول</span>
-                  {% else %}
-                    <span class="status-badge status-badge--pending">در انتظار کراول</span>
-                  {% endif %}
-                </td>
-
-                <td>
-                  <div>
-                    <span class="status-badge status-badge--{{ selora_state.badge_class }}">{{ selora_state.sync_label }}</span>
-
-                    {% if selora_state.workflow_label %}
-                      <div class="session-profile__username" style="margin-top: 6px;">{{ selora_state.workflow_label }}</div>
-                    {% elif selora_state.has_remote_workspace and selora_state.sync_status != 'synced' %}
-                      <div class="session-profile__username" style="margin-top: 6px;">Workspace سلورا ایجاد شده</div>
-                    {% endif %}
-
-                    {% if selora_state.last_synced_at %}
-                      <div class="session-profile__username" style="margin-top: 4px;">
-                        آخرین ارسال موفق: {{ selora_state.last_synced_at|iran_date }} - {{ selora_state.last_synced_at|iran_time }}
-                      </div>
-                    {% endif %}
-                  </div>
-                </td>
-
-                <td>
-                  <span class="session-media-count">{{ crawl_session.crawled_media_count }}</span>
-                </td>
-
-                <td>
-                  <div class="table-date">
-                    <strong class="table-date__date">{{ crawl_session.created_at|iran_date }}</strong>
-
-                    <span class="table-date__time">
-                      ساعت
-                      {{ crawl_session.created_at|iran_time }}
-                    </span>
-                  </div>
-                </td>
-
-                <td>
-                  {% if crawl_session.completed_at %}
-                    <div class="table-date">
-                      <strong class="table-date__date">{{ crawl_session.completed_at|iran_date }}</strong>
-
-                      <span class="table-date__time">
-                        ساعت
-                        {{ crawl_session.completed_at|iran_time }}
-                      </span>
-                    </div>
-                  {% elif crawl_session.status == 'running' %}
-                    <span class="table-date-state table-date-state--running">در حال اجرا</span>
-                  {% else %}
-                    <span class="table-date-state">ثبت نشده</span>
-                  {% endif %}
-                </td>
-
-                <td>
-                  <a href="{{ url_for('web.crawl_detail', session_id=crawl_session.id) }}" class="button button--secondary button--small">مشاهده</a>
-                </td>
-              </tr>
-
-              {% if crawl_session.status == 'failed' and crawl_session.error_message %}
-                <tr class="session-error-row">
-                  <td colspan="7">
-                    <div class="session-error-message">خطای کراول: {{ crawl_session.error_message }}</div>
-                  </td>
-                </tr>
+  </div>
+  <div class="sessions-table-wrapper">
+    <table class="sessions-table sessions-table--v2">
+      <thead><tr>
+        <th scope="col">پیج اینستاگرام</th>
+        <th scope="col">وضعیت کراول</th>
+        <th scope="col">وضعیت ارسال به سلورا</th>
+        <th scope="col">محتوا</th>
+        <th scope="col">زمان ایجاد</th>
+        <th scope="col">پایان کراول</th>
+        <th scope="col" class="sessions-table__actions-heading">جزئیات</th>
+      </tr></thead>
+      <tbody>
+      {% for crawl_session in sessions %}
+        {% set selora_state = session_selora_status(crawl_session.id) %}
+        <tr class="sessions-row" data-session-row data-state="{{ crawl_session.status }}" data-search="{{ (crawl_session.full_name or '')|lower }} {{ crawl_session.username|lower }}">
+          <td data-label="پیج اینستاگرام">
+            <div class="session-profile">
+              <span class="session-profile__avatar-placeholder" aria-hidden="true">{{ crawl_session.username[:1]|upper }}
+                {% if crawl_session.profile_picture_url %}
+                  <img src="{{ crawl_session.profile_picture_url }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" />
+                {% endif %}
+              </span>
+              <span class="session-profile__content">
+                <strong class="session-profile__name" title="{{ crawl_session.full_name or crawl_session.username }}">{{ crawl_session.full_name or crawl_session.username }}</strong>
+                <span class="session-profile__username" dir="ltr">@{{ crawl_session.username }}</span>
+              </span>
+            </div>
+          </td>
+          <td data-label="وضعیت کراول">
+            {% if crawl_session.status == 'completed' %}
+              <span class="status-badge status-badge--completed"><span class="sessions-status-dot" aria-hidden="true"></span>تکمیل‌شده</span>
+            {% elif crawl_session.status == 'running' %}
+              <span class="status-badge status-badge--running"><span class="sessions-status-dot sessions-status-dot--pulse" aria-hidden="true"></span>در حال کراول</span>
+            {% elif crawl_session.status == 'cancelled' %}
+              <span class="status-badge status-badge--pending">متوقف‌شده</span>
+            {% elif crawl_session.status == 'failed' %}
+              <span class="status-badge status-badge--failed">ناموفق</span>
+            {% else %}
+              <span class="status-badge status-badge--pending">در انتظار</span>
+            {% endif %}
+            {% if crawl_session.status == 'failed' and crawl_session.error_message %}
+              <details class="sessions-inline-details"><summary>جزئیات خطا</summary><p>{{ crawl_session.error_message }}</p></details>
+            {% endif %}
+          </td>
+          <td data-label="وضعیت سلورا">
+            <div class="sessions-selora-status">
+              <span class="status-badge status-badge--{{ selora_state.badge_class }}">{{ selora_state.sync_label }}</span>
+              {% if selora_state.workflow_label %}
+                <small>{{ selora_state.workflow_label }}</small>
+              {% elif selora_state.has_remote_workspace and selora_state.sync_status != 'synced' %}
+                <small>فضای کاری سلورا ایجاد شده</small>
               {% endif %}
-
+              {% if selora_state.last_synced_at %}
+                <small>آخرین ارسال: {{ selora_state.last_synced_at|iran_date }}، {{ selora_state.last_synced_at|iran_time }}</small>
+              {% endif %}
               {% if selora_state.error %}
-                <tr class="session-error-row">
-                  <td colspan="7">
-                    <div class="session-error-message">خطای آخرین ارسال به سلورا: {{ selora_state.error }}</div>
-                  </td>
-                </tr>
+                <details class="sessions-inline-details"><summary>خطای ارسال</summary><p>{{ selora_state.error }}</p></details>
               {% endif %}
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <div class="empty-state">
-        <div class="empty-state__icon">S</div>
+            </div>
+          </td>
+          <td data-label="محتوا"><span class="session-media-count">{{ crawl_session.crawled_media_count }}</span></td>
+          <td data-label="ایجاد نشست"><time class="table-date"><strong class="table-date__date">{{ crawl_session.created_at|iran_date }}</strong><span class="table-date__time">{{ crawl_session.created_at|iran_time }}</span></time></td>
+          <td data-label="پایان کراول">
+            {% if crawl_session.completed_at %}
+              <time class="table-date"><strong class="table-date__date">{{ crawl_session.completed_at|iran_date }}</strong><span class="table-date__time">{{ crawl_session.completed_at|iran_time }}</span></time>
+            {% elif crawl_session.status == 'running' %}
+              <span class="table-date-state table-date-state--running">در حال اجرا</span>
+            {% else %}<span class="table-date-state">—</span>{% endif %}
+          </td>
+          <td data-label="عملیات"><a href="{{ url_for('web.crawl_detail', session_id=crawl_session.id) }}" class="sessions-view" aria-label="مشاهده جزئیات @{{ crawl_session.username }}">مشاهده <span aria-hidden="true">←</span></a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="sessions-empty-filter" id="sessionNoMatches" hidden>
+    <span aria-hidden="true">⌕</span><strong>نتیجه‌ای پیدا نشد</strong><p>نام پیج یا وضعیت انتخاب‌شده را تغییر دهید.</p>
+    <button type="button" id="resetSessionFilters">پاک‌کردن فیلترها</button>
+  </div>
+  <div class="sessions-surface__footer">وضعیت کراول و ارسال به سلورا مستقل از یکدیگر ثبت می‌شوند.</div>
+</section>
+{% else %}
+<section class="sessions-surface"><div class="empty-state"><div class="empty-state__icon">◎</div><h2 class="empty-state__title">هنوز نشستی وجود ندارد</h2><p class="empty-state__description">برای شروع، آیدی یک فروشگاه اینستاگرامی را وارد کنید.</p><a href="{{ url_for('web.index') }}" class="button button--primary">اولین کراول را شروع کنید</a></div></section>
+{% endif %}
+{% endblock %}
 
-        <h2 class="empty-state__title">هنوز نشستی وجود ندارد</h2>
-
-        <p class="empty-state__description">اولین پیج اینستاگرامی را برای استخراج محتوا وارد کنید.</p>
-
-        <a href="{{ url_for('web.index') }}" class="button button--primary">شروع اولین کراول</a>
-      </div>
-    {% endif %}
-  </section>
+{% block scripts %}
+{% if sessions %}
+<script defer src="{{ url_for('static', filename='js/custom_select.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/crawl_sessions.js') }}"></script>
+{% endif %}
 {% endblock %}

@@ -248,7 +248,10 @@ from app.services.selora_upload_checkpoint_service import (
 @web_bp.get("/")
 def index() -> str:
     accounts = current_app.extensions["instagram_operator_accounts"].list_accounts()
-    return render_template("index.html", operator_accounts=accounts)
+    return render_template(
+        "index.html", operator_accounts=accounts,
+        crawl_stop_token=current_app.extensions["instagram_operator_csrf"],
+    )
 
 
 @web_bp.get("/favicon.ico")
@@ -431,7 +434,10 @@ def start_crawl() -> ResponseReturnValue:
     # Pin either the selected account or explicit anonymous mode for the job.
     # A legacy global session must not silently become another operator's ID.
     runner_options["auth_state_path"] = auth_state_path or ""
-    runner.start(**runner_options)
+    try:
+        runner.start(**runner_options)
+    except ValueError:
+        return jsonify({"error": "already_running", "message": "این پیج هم‌اکنون در حال کراول است."}), 409
 
     return (
         jsonify(
@@ -469,8 +475,10 @@ def crawl_status(session_id: str) -> ResponseReturnValue:
             404,
         )
 
+    progress = current_app.extensions["crawl_job_progress"].snapshot(session_id)
     return jsonify(
         {
+            "progress": progress,
             "id": crawl_session.id,
             "username": crawl_session.username,
             "status": crawl_session.status,
@@ -483,6 +491,31 @@ def crawl_status(session_id: str) -> ResponseReturnValue:
             ),
         }
     )
+
+
+@web_bp.post("/crawl/<session_id>/stop")
+def stop_crawl(session_id: str) -> ResponseReturnValue:
+    from hmac import compare_digest
+
+    # Stop affects an active local worker; never expose it across the LAN.
+    if (request.remote_addr or "") not in {"127.0.0.1", "::1"}:
+        return jsonify({"error": "forbidden"}), 403
+    expected = current_app.extensions["instagram_operator_csrf"]
+    if not compare_digest(request.headers.get("X-Crawl-Stop-Token", ""), expected):
+        return jsonify({"error": "invalid_token"}), 403
+    origin = request.headers.get("Origin")
+    if origin and origin.rstrip("/") != request.host_url.rstrip("/"):
+        return jsonify({"error": "invalid_origin"}), 403
+
+    session = CrawlSessionRepository().get(session_id=session_id)
+    if session is None:
+        return jsonify({"error": "not_found"}), 404
+    if session.status not in {"pending", "running"}:
+        return jsonify({"error": "not_running", "status": session.status}), 409
+    registry = current_app.extensions["crawl_job_progress"]
+    if not registry.request_cancel(session_id):
+        return jsonify({"error": "not_running_or_stop_requested"}), 409
+    return jsonify({"ok": True, "status": "stopping"}), 202
 
 
 def _render_crawl_detail(

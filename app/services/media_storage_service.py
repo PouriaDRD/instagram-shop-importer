@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
@@ -15,6 +15,7 @@ from urllib.request import Request, urlopen
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 
+from app.services.crawl_job_progress import CrawlCancelled
 from app.extensions import db
 from app.models import InstagramAsset, InstagramMedia, InstagramSource
 
@@ -84,6 +85,8 @@ class InstagramMediaStorageService:
         *,
         source: InstagramSource,
         assets: Iterable[InstagramAsset] | None = None,
+        check_cancel: Callable[[], None] | None = None,
+        on_progress: Callable[..., None] | None = None,
     ) -> MediaStorageResult:
         """
         Persist media for a source or an explicitly supplied asset subset.
@@ -141,7 +144,14 @@ class InstagramMediaStorageService:
         reused = 0
         failed = 0
 
-        for snapshot in snapshots:
+        if on_progress:
+            on_progress("downloading", 0, len(snapshots), saved=0,
+                        reused=0, failed=0, bytes_saved=0)
+
+        bytes_saved = 0
+        for index, snapshot in enumerate(snapshots, start=1):
+            if check_cancel:
+                check_cancel()
             try:
                 if self._snapshot_has_persisted_file(snapshot=snapshot):
                     self._write_asset_state(
@@ -152,11 +162,16 @@ class InstagramMediaStorageService:
                         },
                     )
                     reused += 1
+                    if on_progress:
+                        on_progress("downloading", index, len(snapshots),
+                                    saved=saved, reused=reused, failed=failed,
+                                    bytes_saved=bytes_saved)
                     continue
 
                 persisted = self._persist_snapshot(
                     snapshot=snapshot,
                     username=username,
+                    check_cancel=check_cancel,
                 )
                 self._write_asset_state(
                     asset_id=snapshot.asset_id,
@@ -171,7 +186,10 @@ class InstagramMediaStorageService:
                     },
                 )
                 saved += 1
+                bytes_saved += persisted.size_bytes
 
+            except CrawlCancelled:
+                raise
             except Exception as exc:
                 try:
                     self._write_asset_state(
@@ -203,6 +221,11 @@ class InstagramMediaStorageService:
                     type(exc).__name__,
                     exc,
                 )
+
+            if on_progress:
+                on_progress("downloading", index, len(snapshots),
+                            saved=saved, reused=reused, failed=failed,
+                            bytes_saved=bytes_saved)
 
         return MediaStorageResult(
             saved=saved,
@@ -316,6 +339,7 @@ class InstagramMediaStorageService:
         *,
         snapshot: _AssetSnapshot,
         username: str,
+        check_cancel: Callable[[], None] | None = None,
     ) -> _PersistedFile:
         source_url = snapshot.source_url
         if not source_url:
@@ -367,6 +391,8 @@ class InstagramMediaStorageService:
             try:
                 with temp_path.open("wb") as output:
                     while True:
+                        if check_cancel:
+                            check_cancel()
                         chunk = response.read(self.CHUNK_SIZE)
                         if not chunk:
                             break
