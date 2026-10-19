@@ -667,6 +667,18 @@
               <span class="validation-item__shortcode">{{ item_validation.shortcode }}</span>
             </div>
 
+            {% for product_item in draft.items %}
+              {% if product_item.id == item_validation.item_id and product_item.product_data %}
+                {% set pd = product_item.product_data %}
+                <div style="display:flex;flex-wrap:wrap;gap:7px;margin:8px 0;font-size:12px;color:#64748b">
+                  {% if pd.slug %}<span>اسلاگ: <b dir="ltr">{{ pd.slug }}</b></span>{% endif %}
+                  {% if pd.category_id %}<span>دسته: #{{ pd.category_id }}</span>{% endif %}
+                  {% if pd.subcategory_id %}<span>زیردسته: #{{ pd.subcategory_id }}</span>{% endif %}
+                  {% if pd.benefits %}<span>مزیت‌ها: {{ pd.benefits|truncate(80) }}</span>{% endif %}
+                  <span>ویدئوهای انتخاب‌شده: {{ product_item.selected_assets|selectattr('is_selected')|selectattr('asset.asset_type', 'equalto', 'video')|list|length }}</span>
+                </div>
+              {% endif %}
+            {% endfor %}
             <div class="validation-issues">
               {% if item_validation.issues %}
                 {% for issue in item_validation.issues %}

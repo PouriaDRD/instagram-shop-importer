@@ -945,21 +945,20 @@
                           {% for asset in media.assets %}
                             {% set asset_is_video = asset.asset_type == 'video' %}
                             {% set asset_is_selected = (
-                              not asset_is_video
-                              and asset.id in selected_asset_ids
+                              asset.id in selected_asset_ids
                             ) %}
 
                             <label
-                              class="asset-choice {% if asset_is_selected %}is-selected{% endif %}{% if asset_is_video %} is-disabled{% endif %}"
+                              class="asset-choice {% if asset_is_selected %}is-selected{% endif %}"
                               data-asset-choice
-                              {% if asset_is_video %}aria-disabled="true"{% endif %}
+                              
                             >
                               <input
                                 type="checkbox"
                                 name="asset_ids"
                                 value="{{ asset.id }}"
                                 {% if asset_is_selected %}checked{% endif %}
-                                {% if asset_is_video or not media_is_selected %}disabled{% endif %}
+                                {% if not media_is_selected %}disabled{% endif %}
                                 data-parent-media="{{ media.id }}"
                                 data-asset-type="{{ asset.asset_type }}"
                               />
@@ -975,7 +974,7 @@
                                 {% if asset.asset_type == 'thumbnail' %}
                                   Thumbnail
                                 {% elif asset.asset_type == 'video' %}
-                                  Video · فعلاً قابل ارسال نیست
+                                  ویدئوی قابل انتقال
                                 {% else %}
                                   Image
                                 {% endif %}
@@ -1234,20 +1233,12 @@
           }
 
           assets.forEach((assetCheckbox) => {
-            const isVideo = (
-              assetCheckbox.dataset.assetType === 'video'
-            )
-
-            assetCheckbox.disabled = isVideo
-
-            if (isVideo) {
-              assetCheckbox.checked = false
-            }
+assetCheckbox.disabled = false
           })
 
           const selectableAssets = assets.filter(
             (assetCheckbox) => (
-              assetCheckbox.dataset.assetType !== 'video'
+              !assetCheckbox.disabled && assetCheckbox.dataset.assetType !== 'video'
             )
           )
 

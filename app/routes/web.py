@@ -596,7 +596,6 @@ def _render_crawl_detail(
             for selected_asset in item.selected_assets
             if (
                 selected_asset.is_selected
-                and selected_asset.asset.asset_type != "video"
             )
         }
 
@@ -733,8 +732,17 @@ def import_draft_review(draft_id: str) -> ResponseReturnValue:
             or draft
         )
 
+    catalog = {"categories": [], "subcategories": []}
+    catalog_error = None
+    try:
+        catalog = _selora_client().fetch_import_catalog()
+    except (SeloraApiError, AttributeError) as exc:
+        catalog_error = str(exc)
+
     return render_template(
         "import_review.html",
+        catalog=catalog,
+        catalog_error=catalog_error,
         draft=draft,
         save_error=None,
         save_success=request.args.get("saved") == "1",
@@ -846,6 +854,11 @@ def autosave_import_draft_item(
                     "",
                 )
             ),
+            benefits=request.form.get("benefits", "").strip(),
+            slug=request.form.get("slug", "").strip().lower(),
+            category_id=_parse_optional_int(request.form.get("category_id", ""), label="دسته‌بندی"),
+            subcategory_id=_parse_optional_int(request.form.get("subcategory_id", ""), label="زیردسته"),
+            video_asset_ids=tuple(request.form.getlist("video_asset_ids")),
             primary_asset_id=(
                 request.form.get(
                     "primary_asset_id",
@@ -983,6 +996,11 @@ def save_import_draft(draft_id: str) -> ResponseReturnValue:
                     ),
                     colors=_split_values(request.form.get(f"colors__{item.id}", "")),
                     sizes=_split_values(request.form.get(f"sizes__{item.id}", "")),
+                    benefits=request.form.get(f"benefits__{item.id}", "").strip(),
+                    slug=request.form.get(f"slug__{item.id}", "").strip().lower(),
+                    category_id=_parse_optional_int(request.form.get(f"category_id__{item.id}", ""), label="دسته‌بندی"),
+                    subcategory_id=_parse_optional_int(request.form.get(f"subcategory_id__{item.id}", ""), label="زیردسته"),
+                    video_asset_ids=tuple(request.form.getlist(f"video_asset__{item.id}")),
                     primary_asset_id=(
                         request.form.get(f"primary_asset__{item.id}", "").strip()
                         or None

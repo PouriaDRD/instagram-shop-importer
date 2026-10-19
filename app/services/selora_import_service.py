@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import hashlib
 import logging
 from pathlib import Path
+import mimetypes
 
 from app.config import Config
 from app.integrations.selora.client import (
@@ -67,9 +68,6 @@ class SeloraImportService:
             request_id=draft.id,
         )
 
-        if not pending_uploads:
-            return result
-
         workspace_id = result.workspace.workspace_id
         lock_token = result.workspace.lock_token or draft.remote_lock_token
 
@@ -81,6 +79,14 @@ class SeloraImportService:
             raise SeloraPayloadMappingError(
                 "قفل Workspace برای انتقال فایل‌ها در دسترس نیست."
             )
+
+        self._upload_profile_picture(
+            draft=draft, crawl_session=crawl_session,
+            workspace_id=workspace_id, client_instance_id=client_instance_id,
+            lock_token=lock_token, revision=result.workspace.revision,
+        )
+        if not pending_uploads:
+            return result
 
         checkpoint_service = SeloraUploadCheckpointService()
         checkpoint = checkpoint_service.load(
@@ -229,6 +235,64 @@ class SeloraImportService:
         )
         return result
 
+    def _upload_profile_picture(
+        self, *, draft: ImportDraft, crawl_session: CrawlSession,
+        workspace_id: str, client_instance_id: str,
+        lock_token: str, revision: int,
+    ) -> None:
+        """Send a bounded, trusted Instagram CDN image as authenticated binary upload."""
+        from urllib.parse import urlparse
+        import tempfile
+        import requests
+        url = (crawl_session.profile_picture_url or "").strip()
+        if not url:
+            logger.warning("Instagram profile @%s has no picture URL.", crawl_session.username)
+            return
+        try:
+            parsed = urlparse(url)
+            hostname = (parsed.hostname or "").lower()
+            if parsed.scheme != "https" or not (
+                hostname == "cdninstagram.com" or hostname.endswith(".cdninstagram.com")
+                or hostname == "fbcdn.net" or hostname.endswith(".fbcdn.net")
+            ) or parsed.username or parsed.password or parsed.port not in {None, 443}:
+                raise SeloraPayloadMappingError("آدرس تصویر پروفایل خارج از CDN معتبر اینستاگرام است.")
+            with requests.get(url, stream=True, allow_redirects=False, timeout=(5, 20)) as response:
+                response.raise_for_status()
+                if response.status_code != 200:
+                    raise SeloraPayloadMappingError("دریافت فایل عکس پروفایل ناموفق بود.")
+                mime = (response.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+                ext = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}.get(mime)
+                if not ext:
+                    raise SeloraPayloadMappingError("فرمت تصویر پروفایل نامعتبر است.")
+                with tempfile.TemporaryDirectory(prefix="selora-profile-") as tmp:
+                    filename = Path(tmp) / ("instagram_profile" + ext)
+                    digest = hashlib.sha256()
+                    total = 0
+                    with filename.open("wb") as sink:
+                        for chunk in response.iter_content(64 * 1024):
+                            if not chunk:
+                                continue
+                            total += len(chunk)
+                            if total > 8 * 1024 * 1024:
+                                raise SeloraPayloadMappingError("حجم عکس پروفایل بیشتر از حد مجاز است.")
+                            digest.update(chunk)
+                            sink.write(chunk)
+                    if total == 0:
+                        raise SeloraPayloadMappingError("فایل عکس پروفایل خالی دریافت شده است.")
+                    self.client.upload_workspace_profile_picture(
+                        workspace_id=workspace_id,
+                        client_workspace_id=draft.id,
+                        client_instance_id=client_instance_id,
+                        lock_token=lock_token,
+                        expected_revision=revision,
+                        sha256=digest.hexdigest(),
+                        file_path=filename,
+                        content_type=mime,
+                    )
+        except (requests.RequestException, ValueError) as exc:
+            logger.warning("Unable to retrieve Instagram profile photo for @%s: %s", crawl_session.username, type(exc).__name__)
+            raise SeloraPayloadMappingError("دریافت عکس پروفایل اینستاگرام ناموفق بود. اتصال و لینک عکس را بررسی کنید.") from exc
+
     def _prepare_selected_assets(
         self,
         *,
@@ -242,7 +306,6 @@ class SeloraImportService:
             for selected_asset in item.selected_assets
             if (
                 selected_asset.is_selected
-                and selected_asset.asset.asset_type != "video"
             )
         ]
 
@@ -325,15 +388,24 @@ class SeloraImportService:
 
             source_sha256 = asset.local_sha256 or self._sha256(file_path)
 
-            try:
-                prepared = derivative_service.prepare_webp(
-                    source_path=file_path,
-                    source_sha256=source_sha256,
-                )
-            except SeloraMediaDerivativeError as exc:
-                raise SeloraPayloadMappingError(
-                    "Preparing selected Instagram image for Selora failed."
-                ) from exc
+            if asset.asset_type == "video":
+                # Videos must be transferred byte-for-byte, not passed through an image encoder.
+                prepared_path = file_path
+                prepared_sha256 = source_sha256
+                prepared_content_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+            else:
+                try:
+                    prepared = derivative_service.prepare_webp(
+                        source_path=file_path,
+                        source_sha256=source_sha256,
+                    )
+                except SeloraMediaDerivativeError as exc:
+                    raise SeloraPayloadMappingError(
+                        "Preparing selected Instagram image for Selora failed."
+                    ) from exc
+                prepared_path = prepared.file_path
+                prepared_sha256 = prepared.sha256
+                prepared_content_type = prepared.content_type
 
             logger.info(
                 (
@@ -344,9 +416,9 @@ class SeloraImportService:
                 asset.media.media_id,
                 asset.asset_type,
                 asset.position,
-                prepared.file_path,
-                prepared.file_path.stat().st_size,
-                prepared.sha256,
+                prepared_path,
+                prepared_path.stat().st_size,
+                prepared_sha256,
             )
 
             pending.append(
@@ -354,9 +426,9 @@ class SeloraImportService:
                     instagram_media_id=asset.media.media_id,
                     asset_type=asset.asset_type,
                     position=asset.position,
-                    file_path=prepared.file_path,
-                    content_type=prepared.content_type,
-                    sha256=prepared.sha256,
+                    file_path=prepared_path,
+                    content_type=prepared_content_type,
+                    sha256=prepared_sha256,
                 )
             )
 

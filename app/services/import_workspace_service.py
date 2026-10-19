@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+import re
 from datetime import datetime, timezone
 
 from app.models import InstagramSource
@@ -31,6 +32,11 @@ class ImportWorkspaceItemUpdate:
     colors: tuple[str, ...]
     sizes: tuple[str, ...]
     primary_asset_id: str | None
+    benefits: str = ""
+    slug: str = ""
+    category_id: int | None = None
+    subcategory_id: int | None = None
+    video_asset_ids: tuple[str, ...] = ()
 
 
 class ImportWorkspaceService:
@@ -485,24 +491,6 @@ class ImportWorkspaceService:
                 )
             )
 
-        selected_video_asset_ids = {
-            asset.id
-            for media in source.media
-            if media.id in selected_media_ids
-            for asset in media.assets
-            if (
-                asset.asset_type == "video"
-                and asset.id in selected_asset_ids
-            )
-        }
-
-        if selected_video_asset_ids:
-            raise ValueError(
-                (
-                    "Video assets cannot currently be selected "
-                    "or sent to Selora."
-                )
-            )
 
     def _sync_workspace_selection(
         self,
@@ -587,7 +575,6 @@ class ImportWorkspaceService:
             for asset in media_assets
             if (
                 asset.id in selected_asset_ids
-                and asset.asset_type != "video"
             )
         ]
 
@@ -604,6 +591,7 @@ class ImportWorkspaceService:
                 if (
                     selection.is_selected
                     and selection.is_primary
+                    and selection.asset.asset_type != "video"
                     and (
                         selection.instagram_asset_id
                         in desired_ids
@@ -616,7 +604,7 @@ class ImportWorkspaceService:
         primary_id = (
             current_primary_id
             or (
-                desired_assets[0].id
+                next((asset.id for asset in desired_assets if asset.asset_type != "video"), None)
                 if desired_assets
                 else None
             )
@@ -665,11 +653,11 @@ class ImportWorkspaceService:
     def _validate_update(
         update: ImportWorkspaceItemUpdate,
     ) -> None:
-        if len(update.product_name) > 255:
+        if len(update.product_name) > 200:
             raise ValueError(
                 (
                     "نام محصول نمی‌تواند بیشتر "
-                    "از ۲۵۵ کاراکتر باشد."
+                    "از ۲۰۰ کاراکتر باشد."
                 )
             )
 
@@ -711,6 +699,17 @@ class ImportWorkspaceService:
             raise ValueError(
                 "موجودی نمی‌تواند منفی باشد."
             )
+        if len(update.benefits) > 8000:
+            raise ValueError("متن مزیت‌های محصول بیش از حد طولانی است.")
+        if update.slug and not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", update.slug):
+            raise ValueError("اسلاگ باید از حروف کوچک انگلیسی، اعداد و خط تیره تشکیل شده باشد.")
+        if len(update.slug) > 255:
+            raise ValueError("اسلاگ بیش از ۲۵۵ کاراکتر است.")
+        if update.category_id is not None and update.category_id < 1:
+            raise ValueError("شناسه دسته‌بندی نامعتبر است.")
+        if update.subcategory_id is not None and update.category_id is None:
+            raise ValueError("برای زیردسته، ابتدا دسته اصلی را انتخاب کنید.")
+
 
     @staticmethod
     def _apply_update(
@@ -726,6 +725,16 @@ class ImportWorkspaceService:
         product_data.description = (
             update.description.strip()
         )
+        product_data.benefits = update.benefits.strip()
+        product_data.slug = update.slug.strip().lower()
+        product_data.category_id = update.category_id
+        product_data.subcategory_id = update.subcategory_id
+        selected_video_ids = set(update.video_asset_ids)
+        for selection in item.selected_assets:
+            if selection.asset.asset_type == "video":
+                selection.is_selected = selection.id in selected_video_ids
+                selection.is_primary = False
+
         product_data.sale_price = (
             update.sale_price
         )
@@ -766,6 +775,8 @@ class ImportWorkspaceService:
             None,
         )
 
+        if selected_asset is not None and selected_asset.asset.asset_type == "video":
+            raise ValueError("ویدئو نمی‌تواند تصویر اصلی محصول باشد.")
         if selected_asset is None:
             raise ValueError(
                 (

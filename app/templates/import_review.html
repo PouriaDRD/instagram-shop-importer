@@ -811,6 +811,7 @@
                         <label class="product-editor-asset {% if selected_asset.is_primary %}is-primary{% endif %}">
                           <input
                             type="radio"
+                            {% if selected_asset.asset.asset_type == 'video' %}disabled{% endif %}
                             name="primary_asset__{{ item.id }}"
                             value="{{ selected_asset.id }}"
                             {% if selected_asset.is_primary %}checked{% endif %}
@@ -849,7 +850,7 @@
                       id="product-name-{{ item.id }}"
                       class="form-input"
                       type="text"
-                      maxlength="255"
+                      maxlength="200"
                       name="product_name__{{ item.id }}"
                       value="{{ pd.product_name if pd else '' }}"
                       placeholder="مثلاً شومیز لینن زنانه"
@@ -868,6 +869,56 @@
                     >{{ pd.description if pd else item.media.caption or '' }}</textarea>
                   </div>
 
+                  <div class="form-field">
+                    <label class="form-label" for="benefits-{{ item.id }}">مزیت‌ها و ویژگی‌های محصول</label>
+                    <textarea id="benefits-{{ item.id }}" class="form-textarea" name="benefits__{{ item.id }}" rows="4" maxlength="8000" placeholder="هر مزیت در یک خط">{{ pd.benefits if pd else '' }}</textarea>
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label" for="slug-{{ item.id }}">اسلاگ محصول (آدرس انگلیسی)</label>
+                    <input id="slug-{{ item.id }}" class="form-input" dir="ltr" name="slug__{{ item.id }}" maxlength="255" value="{{ pd.slug if pd else '' }}" data-slug-input="{{ item.id }}" data-slug-fallback="{{ item.media.shortcode|lower }}" placeholder="generated-product-slug" pattern="[a-z0-9]+(-[a-z0-9]+)*" />
+                    <p class="form-help">به‌صورت خودکار از عنوان پیشنهاد می‌شود؛ قابل ویرایش است. یکتایی نهایی در سلورا بررسی می‌شود.</p>
+                  </div>
+                  {% if catalog_error %}
+                    <div class="form-field" style="color:#a44019;">دریافت دسته‌بندی‌ها از سلورا انجام نشد: {{ catalog_error }}</div>
+                  {% endif %}
+                  <div class="product-editor-fields__grid">
+                    <div class="form-field">
+                      <label class="form-label" for="category-{{ item.id }}">دسته‌بندی</label>
+                      <select class="form-input" id="category-{{ item.id }}" name="category_id__{{ item.id }}" data-category-select="{{ item.id }}">
+                        <option value="">بدون دسته</option>
+                        {% if pd and pd.category_id and not (catalog.categories if catalog is defined else []) %}
+                          <option value="{{ pd.category_id }}" selected>دسته انتخاب‌شده (#{{ pd.category_id }})</option>
+                        {% endif %}
+                        {% for category in (catalog.categories if catalog is defined else []) %}
+                          <option value="{{ category.id }}" {% if pd and pd.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="form-field">
+                      <label class="form-label" for="subcategory-{{ item.id }}">زیردسته</label>
+                      <select class="form-input" id="subcategory-{{ item.id }}" name="subcategory_id__{{ item.id }}" data-subcategory-select="{{ item.id }}">
+                        <option value="">بدون زیردسته</option>
+                        {% if pd and pd.subcategory_id and not (catalog.subcategories if catalog is defined else []) %}
+                          <option value="{{ pd.subcategory_id }}" data-category-parent="{{ pd.category_id }}" selected>زیردسته انتخاب‌شده (#{{ pd.subcategory_id }})</option>
+                        {% endif %}
+                        {% for sub in (catalog.subcategories if catalog is defined else []) %}
+                          <option value="{{ sub.id }}" data-category-parent="{{ sub.category_id }}" {% if pd and pd.subcategory_id == sub.id %}selected{% endif %}>{{ sub.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                  </div>
+                  {% set videos = active_assets | selectattr('asset.asset_type', 'equalto', 'video') | list %}
+                  {% if videos %}
+                    <div class="form-field">
+                      <label class="form-label">ویدئوهای محصول</label>
+                      {% for video in videos %}
+                        <label style="display:flex;align-items:center;gap:8px;padding:5px 0">
+                          <input type="checkbox" name="video_asset__{{ item.id }}" value="{{ video.id }}" {% if video.is_selected %}checked{% endif %} />
+                          <span>انتقال ویدئو {{ loop.index }} به سلورا</span>
+                        </label>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
                   <div class="product-editor-fields__grid product-editor-fields__grid--3">
                     <div class="form-field">
                       <label class="form-label">قیمت فروش</label>
@@ -1439,6 +1490,12 @@
           sizes?.value ?? ''
         )
 
+        for (const field of ['benefits', 'slug', 'category_id', 'subcategory_id']) {
+          payload.set(field, panel.querySelector(`[name="${field}__${itemId}"]`)?.value ?? '')
+        }
+        panel.querySelectorAll(`[name="video_asset__${itemId}"]:checked`).forEach(input => {
+          payload.append('video_asset_ids', input.value)
+        })
         payload.set(
           'primary_asset_id',
           primaryAsset?.value ?? ''
@@ -1583,7 +1640,37 @@
         })
       })
 
+      const translit = {ا:'a',آ:'a',ب:'b',پ:'p',ت:'t',ث:'s',ج:'j',چ:'ch',ح:'h',خ:'kh',د:'d',ذ:'z',ر:'r',ز:'z',ژ:'zh',س:'s',ش:'sh',ص:'s',ض:'z',ط:'t',ظ:'z',ع:'a',غ:'gh',ف:'f',ق:'gh',ک:'k',ك:'k',گ:'g',ل:'l',م:'m',ن:'n',و:'v',ه:'h',ی:'y',ي:'y',ئ:'y',ء:'',ة:'h'}
+      const slugifyTitle = value => {
+        const translated = [...(value || '').trim().toLowerCase()].map(ch => translit[ch] ?? ch).join('')
+        return translated.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,255)
+      }
+      panels.forEach(panel => {
+        const title = panel.querySelector('[data-product-name]')
+        const slug = panel.querySelector('[data-slug-input]')
+        if (!title || !slug) return
+        let manual = Boolean(slug.value.trim())
+        slug.addEventListener('input', () => { manual = true })
+        title.addEventListener('input', () => {
+          if (!manual) slug.value = slugifyTitle(title.value) || ('instagram-' + (slug.dataset.slugFallback || 'product'))
+        })
+        if (!slug.value) slug.value = slugifyTitle(title.value) || ('instagram-' + (slug.dataset.slugFallback || 'product'))
+      })
+
       panels.forEach((panel, index) => {
+        const category = panel.querySelector('[data-category-select]')
+        const subcategory = panel.querySelector('[data-subcategory-select]')
+        const filterChildren = () => {
+          if (!category || !subcategory) return
+          [...subcategory.options].forEach(option => {
+            if (!option.value) return
+            option.hidden = option.dataset.categoryParent !== category.value
+            option.disabled = option.hidden
+          })
+          if (subcategory.selectedOptions[0]?.disabled) subcategory.value = ''
+        }
+        category?.addEventListener('change', filterChildren)
+        filterChildren()
         panel.querySelector('[data-prev-product]')?.addEventListener(
           'click',
           () => {

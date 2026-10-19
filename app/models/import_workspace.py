@@ -389,6 +389,11 @@ class ImportProductData(db.Model):
         default="",
     )
 
+    benefits: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    slug: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    category_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    subcategory_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     sale_price: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
@@ -436,6 +441,10 @@ class ImportProductData(db.Model):
         draft_item_id: str | None = None,
         product_name: str = "",
         description: str = "",
+        benefits: str = "",
+        slug: str = "",
+        category_id: int | None = None,
+        subcategory_id: int | None = None,
         sale_price: int | None = None,
         list_price: int | None = None,
         stock: int = 0,
@@ -455,6 +464,10 @@ class ImportProductData(db.Model):
         self.workspace_item_id = effective_item_id
         self.product_name = product_name
         self.description = description
+        self.benefits = benefits
+        self.slug = slug
+        self.category_id = category_id
+        self.subcategory_id = subcategory_id
         self.sale_price = sale_price
         self.list_price = list_price
         self.stock = stock

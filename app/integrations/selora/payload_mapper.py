@@ -142,7 +142,6 @@ class SeloraPayloadMapper:
             if (
                 item.is_selected
                 and selected_asset.is_selected
-                and selected_asset.asset.asset_type != "video"
                 and (
                     selected_asset.asset.asset_type,
                     selected_asset.asset.position,
@@ -204,6 +203,10 @@ class SeloraPayloadMapper:
                     .description
                     .strip()
                 ),
+                "benefits": (product_data.benefits or "").strip(),
+                "slug": (product_data.slug or "").strip().lower(),
+                "category_id": product_data.category_id,
+                "subcategory_id": product_data.subcategory_id,
                 "price_without_discount": (
                     product_data.list_price
                 ),

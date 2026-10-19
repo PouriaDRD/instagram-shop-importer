@@ -14,7 +14,7 @@ from app.extensions import db
 
 logger = logging.getLogger("app")
 
-FINAL_REVISION = "d2f4a8e71c90"
+FINAL_REVISION = "f5c100000001"
 
 _REQUIRED_COLUMNS: dict[str, set[str]] = {
     "crawled_media": {
@@ -31,6 +31,12 @@ _REQUIRED_COLUMNS: dict[str, set[str]] = {
         "local_file_size",
         "local_sha256",
         "local_file_error",
+    },
+    "import_draft_product_data": {
+        "benefits",
+        "slug",
+        "category_id",
+        "subcategory_id",
     },
     "import_drafts": {
         "local_sync_status",
@@ -264,6 +270,21 @@ def _apply_sqlite_schema_migrations(engine: Engine) -> None:
             _add_column_if_missing(
                 connection,
                 table="crawled_assets",
+                column=column,
+                ddl=ddl,
+            )
+
+        # New editor metadata (f5c100000001): align the desktop startup
+        # migrator with Alembic rather than stamping an older revision.
+        for column, ddl in (
+            ("benefits", "TEXT NOT NULL DEFAULT ''"),
+            ("slug", "VARCHAR(255) NOT NULL DEFAULT ''"),
+            ("category_id", "INTEGER"),
+            ("subcategory_id", "INTEGER"),
+        ):
+            _add_column_if_missing(
+                connection,
+                table="import_draft_product_data",
                 column=column,
                 ddl=ddl,
             )

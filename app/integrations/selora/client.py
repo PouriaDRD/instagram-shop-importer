@@ -155,6 +155,54 @@ class SeloraApiClient:
             or requests.Session()
         )
 
+    def fetch_import_catalog(self) -> dict[str, Any]:
+        """Read category/subcategory definitions using the current scoped API key."""
+        body, _ = self._request_json(
+            method="GET", path="/instagram-importer/api/v1/catalog/options/"
+        )
+        categories = body.get("categories")
+        subcategories = body.get("subcategories")
+        if not isinstance(categories, list) or not isinstance(subcategories, list):
+            raise SeloraApiError("ساختار دسته‌بندی‌های برگشتی سلورا نامعتبر است.")
+        return {"categories": categories, "subcategories": subcategories}
+
+    def upload_workspace_profile_picture(
+        self, *, workspace_id: str, client_workspace_id: str,
+        client_instance_id: str, lock_token: str, expected_revision: int,
+        sha256: str, file_path: Path, content_type: str,
+    ) -> None:
+        """Upload a persisted shop image, never send temporary CDN URLs to Selora."""
+        endpoint = (
+            "/instagram-importer/api/v1/imports/workspaces/"
+            f"{workspace_id}/profile/photo/"
+        )
+        try:
+            with file_path.open("rb") as handle:
+                response = self._http.post(
+                    f"{self._base_url}{endpoint}",
+                    data={
+                        "client_workspace_id": client_workspace_id,
+                        "client_instance_id": client_instance_id,
+                        "lock_token": lock_token,
+                        "expected_revision": str(expected_revision),
+                        "sha256": sha256,
+                    },
+                    files={"file": (file_path.name, handle, content_type)},
+                    headers={"X-API-Key": self._api_key, "Accept": "application/json"},
+                    timeout=self._timeout,
+                )
+        except requests.RequestException as exc:
+            raise SeloraApiNetworkError("آپلود تصویر فروشگاه به سلورا ناموفق بود.") from exc
+        if response.status_code not in {200, 201}:
+            body = self._read_json_object(response=response)
+            error = body.get("error") if isinstance(body, dict) else None
+            message = error.get("message") if isinstance(error, dict) else "خطا در دریافت تصویر فروشگاه"
+            raise SeloraApiResponseError(
+                status_code=response.status_code,
+                code=(error.get("code", "shop_photo_upload_failed") if isinstance(error, dict) else "shop_photo_upload_failed"),
+                message=str(message), request_id="",
+            )
+
     def resolve_workspace(
         self,
         *,
